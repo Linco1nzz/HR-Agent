@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, pool
 
 import app.db.models  # noqa: F401  确保所有模型注册到 Base.metadata
 from app.core.config import settings
-from app.db.base import Base
+from app.db.base import BaseModel
 
 config = context.config
 
@@ -23,7 +23,7 @@ if config.config_file_name is not None:
 # 转义 %，避免 configparser 对密码中的 % 做插值
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
-target_metadata = Base.metadata
+target_metadata = BaseModel.metadata
 
 
 def run_migrations_offline() -> None:

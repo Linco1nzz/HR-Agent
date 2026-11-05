@@ -2,4 +2,16 @@
 
 在此定义模型，并确保 `app.db.models` 被 Alembic 的 `migrations/env.py` 导入，
 这样 `alembic revision --autogenerate` 才能发现新表。
+
+所有模型继承 `app.db.base.BaseModel`，自动获得主键、创建/更新时间、
+创建/更新人、是否启用等公共字段；未显式声明 `__tablename__` 时按类名自动生成表名::
+
+    from sqlalchemy import String
+    from sqlalchemy.orm import Mapped, mapped_column
+
+    from app.db.base import BaseModel
+
+
+    class Employee(BaseModel):  # 自动使用表名 employee
+        name: Mapped[str] = mapped_column(String(64))
 """
