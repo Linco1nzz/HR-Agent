@@ -1,24 +1,24 @@
 """
-    日志配置（structlog + 标准库 logging 融合版）
+日志配置（structlog + 标准库 logging 融合版）
 
-    设计目标：
-        1. 保留标准库 dictConfig 的 Handler 架构：控制台、普通日志文件（滚动）、错误日志文件（滚动）。
-        2. 用 structlog 的 ProcessorFormatter 接管所有 Handler 的格式化：
-             - 开发环境：彩色控制台输出（ConsoleRenderer）
-             - 生产环境：JSON 输出（JSONRenderer），便于日志采集
-        3. 业务代码可用 structlog.get_logger(__name__) 记录结构化字段；
-           第三方库（uvicorn、sqlalchemy 等）继续用 logging.getLogger(__name__)，
-           其日志会经 foreign_pre_chain 补齐字段后统一渲染。
+设计目标：
+    1. 保留标准库 dictConfig 的 Handler 架构：控制台、普通日志文件（滚动）、错误日志文件（滚动）。
+    2. 用 structlog 的 ProcessorFormatter 接管所有 Handler 的格式化：
+         - 开发环境：彩色控制台输出（ConsoleRenderer）
+         - 生产环境：JSON 输出（JSONRenderer），便于日志采集
+    3. 业务代码可用 structlog.get_logger(__name__) 记录结构化字段；
+       第三方库（uvicorn、sqlalchemy 等）继续用 logging.getLogger(__name__)，
+       其日志会经 foreign_pre_chain 补齐字段后统一渲染。
 
-    使用方式：
-        1. 项目启动时调用 setup_logging()
-        2. 业务代码：
-            from app.core.logging import get_logger
-            logger = get_logger(__name__)
-            logger.info("用户登录", user_id=123, action="login")
-        3. 标准库风格仍然可用：
-            import logging
-            logging.getLogger(__name__).info("hello")
+使用方式：
+    1. 项目启动时调用 setup_logging()
+    2. 业务代码：
+        from app.core.logging import get_logger
+        logger = get_logger(__name__)
+        logger.info("用户登录", user_id=123, action="login")
+    3. 标准库风格仍然可用：
+        import logging
+        logging.getLogger(__name__).info("hello")
 """
 
 from __future__ import annotations
@@ -35,7 +35,6 @@ from structlog.stdlib import ProcessorFormatter
 
 from app.core.config import settings
 
-
 # ---------------------------------------------------------------------------
 # 日志目录：基于项目根目录，避免受进程工作目录影响
 # ---------------------------------------------------------------------------
@@ -46,9 +45,9 @@ LOG_DIR = _PROJECT_ROOT / "logs"
 
 class SafeStreamHandler(logging.StreamHandler):
     """
-        自定义控制台 Handler：
-            避免中文/特殊字符在某些终端编码下导致程序报错。
-            编码失败时，按 stream 的实际编码做 errors='replace' 兜底。
+    自定义控制台 Handler：
+        避免中文/特殊字符在某些终端编码下导致程序报错。
+        编码失败时，按 stream 的实际编码做 errors='replace' 兜底。
     """
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -69,6 +68,7 @@ class SafeStreamHandler(logging.StreamHandler):
                 except Exception:
                     pass
 
+
 # ---------------------------------------------------------------------------
 # 自定义 Processor：从标准库的 LogRecord 中提取 module 和 funcName
 # ---------------------------------------------------------------------------
@@ -82,6 +82,7 @@ def add_module_and_func(logger, method_name, event_dict):
         event_dict["module"] = record.module
         event_dict["funcName"] = record.funcName
     return event_dict
+
 
 # ---------------------------------------------------------------------------
 # structlog 共享处理器链
@@ -101,10 +102,9 @@ def _build_shared_processors() -> list[Any]:
 def _build_console_renderer() -> Any:
     """只给控制台用的彩色渲染器"""
     return structlog.dev.ConsoleRenderer(
-        colors=True, 
-        pad_level=False,
-        exception_formatter=structlog.dev.plain_traceback
+        colors=True, pad_level=False, exception_formatter=structlog.dev.plain_traceback
     )
+
 
 def _build_file_renderer() -> Any:
     """专门给日志文件用的渲染器（JSON 或纯文本，绝不能带颜色）"""
@@ -113,7 +113,7 @@ def _build_file_renderer() -> Any:
 
 def setup_logging() -> None:
     """
-        初始化日志系统（幂等，可重复调用）。
+    初始化日志系统（幂等，可重复调用）。
     """
     # 1) 确保日志目录存在
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -121,13 +121,12 @@ def setup_logging() -> None:
     # 2) Windows 控制台编码处理：直接重配 stdout/stderr，避免 os.system('chcp') 的副作用
     if os.name == "nt":
         try:
-            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
-            sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+            sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
         except Exception:
             pass
 
     level_name = settings.log_level.upper()
-    level = getattr(logging, level_name, logging.INFO)
 
     shared_processors = _build_shared_processors()
     console_renderer = _build_console_renderer()

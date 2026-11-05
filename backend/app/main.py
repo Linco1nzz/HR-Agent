@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
-
-from app.core.logging import setup_logging, get_logger
+from app.core.logging import get_logger, setup_logging
 from app.db.session import dispose_engine
 
 setup_logging()
@@ -74,9 +73,9 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app.main:app", 
-        host=settings.host, 
-        port=settings.port, 
-        reload=settings.debug, 
-        log_level=settings.log_level.lower()
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+        log_level=settings.log_level.lower(),
     )

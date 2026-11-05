@@ -6,6 +6,7 @@ exclude =
     build,
     dist,
     *.egg-info,
-    migrations/versions
+    migrations/versions/*,
+    */migrations/versions/*
 per-file-ignores =
     __init__.py: F401

@@ -12,17 +12,23 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
 
+  # 工具配置都在 backend/ 下，钩子从仓库根执行时需显式指定，否则会退回默认规则。
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
       - id: black
+        args: ["--config=backend/pyproject.toml"]
 
   - repo: https://github.com/pycqa/isort
     rev: 6.0.1
     hooks:
       - id: isort
+        args: ["--settings-path=backend/pyproject.toml"]
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.2
     hooks:
       - id: flake8
+        args: ["--config=backend/.flake8"]
+        # 自动生成的迁移脚本不参与 lint（与 backend/.flake8 的 exclude 保持一致）
+        exclude: ^backend/migrations/
