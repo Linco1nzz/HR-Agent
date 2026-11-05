@@ -1,4 +1,7 @@
-# 提交前自动格式化与检查：uv run pre-commit install
+# 提交前自动格式化与检查。在仓库根执行安装：
+#   uv run --project backend pre-commit install -c backend/.pre-commit-config.yaml
+# 手动全量检查：
+#   uv run --project backend pre-commit run --all-files -c backend/.pre-commit-config.yaml
 minimum_pre_commit_version: "3.5.0"
 
 repos:

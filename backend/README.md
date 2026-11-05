@@ -77,7 +77,7 @@ uv run uvicorn app.main:app --reload --port 8000
 | 覆盖率 | `uv run pytest --cov=app --cov-report=term-missing` |
 | 格式化 | `uv run black .`、`uv run isort .` |
 | 静态检查 | `uv run flake8 app tests`、`uv run mypy app` |
-| 安装提交钩子 | `uv run pre-commit install` |
+| 安装提交钩子 | 在仓库根执行 `uv run --project backend pre-commit install -c backend/.pre-commit-config.yaml` |
 
 ## 数据库迁移（Alembic）
 
@@ -125,4 +125,5 @@ uv run alembic current                                                # 当前�
 - 新接口：在 `app/api/v1/endpoints/<domain>.py` 定义，并注册到 `app/api/v1/router.py`。
 - 配置统一通过 `app.core.config.settings` 读取，不要直接读 `os.environ`。
 - 默认测试不依赖外部服务；依赖 PostgreSQL / Redis / LLM 的测试加 `@pytest.mark.integration`。
-- 提交前安装 pre-commit，保证格式与静态检查通过。
+- 提交前安装 pre-commit（在仓库根执行上面的安装命令）；钩子会运行 black、isort、flake8 等检查，
+  任一项失败会中止提交，必要时可用 `git commit --no-verify` 临时跳过。
