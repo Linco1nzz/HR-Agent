@@ -1,0 +1,32 @@
+# --- 环境变量与密钥 ---
+.env
+.env.local
+.env.*.local
+
+# --- Node / 前端 ---
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# --- Python / 后端 ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- 编辑器 / 系统 ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- 日志与本地数据 ---
+*.log
+logs/
+docker/volumes/

@@ -1,0 +1,119 @@
+[project]
+name = "hr-agent-backend"
+version = "0.1.0"
+description = "HR-Agent 后端服务：FastAPI + SQLAlchemy + LangChain"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles",
+    "alembic",
+    "apscheduler",
+    "asyncpg",
+    "bcrypt",
+    "boto3",
+    "cachetools",
+    "celery[redis]",
+    "dashscope",
+    "email-validator",
+    "fastapi",
+    "httpx",
+    "langchain",
+    "langchain-classic",
+    "langchain-community",
+    "langchain-core",
+    "langchain-experimental",
+    "langchain-openai",
+    "langchain-postgres",
+    "langchain-text-splitters",
+    "langgraph",
+    "numpy",
+    "openai",
+    "openpyxl",
+    "orjson",
+    "pandas",
+    "passlib",
+    "pdfplumber",
+    "pgvector",
+    "prometheus-client",
+    "psycopg[binary,pool]",
+    "pydantic",
+    "pydantic-settings",
+    "pyjwt",
+    "python-dateutil",
+    "python-docx",
+    "python-dotenv",
+    "python-multipart",
+    "pyyaml",
+    "redis",
+    "requests",
+    "sqlalchemy",
+    "structlog",
+    "tenacity",
+    "tiktoken",
+    "tzdata",
+    "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "pre-commit",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+
+[tool.uv]
+# 纯应用（不发布为库），uv sync 只安装依赖，不打包本项目。
+package = false
+default-groups = ["dev"]
+
+# 国内下载加速。如需改用 PyPI 官方源：删除下面三行并重新执行 `uv lock`。
+[[tool.uv.index]]
+name = "tuna"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: 需要外部服务（PostgreSQL / Redis / LLM API）的测试",
+]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "."
+packages = ["app"]
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]

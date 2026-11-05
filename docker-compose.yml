@@ -1,0 +1,78 @@
+# =============================================================================
+# HR-Agent 基础设施：PostgreSQL 17 + pgvector
+#
+# 仅包含数据库服务，backend / frontend 由各自目录下的服务负责，
+# 通过 docker-compose.network 或宿主机 localhost 访问本数据库。
+#
+# 常用命令（在本文件所在目录执行）：
+#   docker compose up -d          启动
+#   docker compose ps             查看状态
+#   docker compose logs -f pg    查看日志
+#   docker compose down           停止（保留数据）
+#   docker compose down -v        停止并删除数据卷（数据会丢失！）
+# =============================================================================
+
+name: hr-agent
+
+services:
+  pg:
+    image: ${PGVECTOR_IMAGE:-pgvector/pgvector:pg17}
+    container_name: hr-agent-pg
+    restart: unless-stopped
+    shm_size: 256mb
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hr_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-hr_agent_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请先在 .env 中设置 POSTGRES_PASSWORD}
+      # 容器与数据库时区
+      TZ: ${TZ:-Asia/Shanghai}
+      PGTZ: ${TZ:-Asia/Shanghai}
+      # 初始化脚本执行目录（仅数据卷为空时执行一次）
+      # POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+    ports:
+      # 宿主机端口:容器端口。改 POSTGRES_PORT 可避免与本机已有 PG 冲突
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+      # 只在首次初始化（数据卷为空）时自动执行，创建扩展等
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+
+    command:
+      - postgres
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-256MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+      - -c
+      - timezone=${TZ:-Asia/Shanghai}
+      # 记录超过 500ms 的慢查询，便于调优向量检索
+      - -c
+      - log_min_duration_statement=${PG_LOG_MIN_DURATION_MS:-500}
+      - -c
+      - log_timezone=${TZ:-Asia/Shanghai}
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+    networks:
+      - hr_agent_net
+
+volumes:
+  pgsql_data:
+    name: hr-agent-pgsql-data
+
+networks:
+  hr_agent_net:
+    name: hr-agent-net
+    driver: bridge
