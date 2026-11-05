@@ -8,6 +8,9 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _to_async_url(raw_url: str) -> str:
@@ -44,8 +47,16 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
+        finally:
+            await session.close()
 
 
 async def dispose_engine() -> None:
-    """关闭连接池（应用退出时调用）。"""
-    await engine.dispose()
+    """
+    关闭数据库连接： 用于应用关闭时释放数据库连接池。
+    """
+    try:
+        await engine.dispose()
+        logger.info("数据库连接已关闭")
+    except Exception as e:
+        logger.error(f"关闭数据库时出错: {e}")
