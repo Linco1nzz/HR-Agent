@@ -95,6 +95,9 @@ def _build_shared_processors() -> list[Any]:
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
         structlog.processors.StackInfoRenderer(),
+        # 把 exc_info 转成可序列化的 traceback 字符串：
+        # 控制台与 JSON 文件都能完整保留堆栈（JSONRenderer 不会自行处理 exc_info）
+        structlog.processors.format_exc_info,
         add_module_and_func,  # 自定义处理器：提取 module 和 funcName
     ]
 

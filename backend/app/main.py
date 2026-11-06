@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
+from app.core.middleware import RequestContextMiddleware
 from app.db.session import dispose_engine
 
 setup_logging()
@@ -52,6 +54,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # 最后添加 → 位于用户中间件最外层，所有响应（含错误响应）都能带上 X-Request-ID
+    app.add_middleware(RequestContextMiddleware)
+
+    # 统一异常处理：自定义异常 / HTTPException / 校验 / SQLAlchemy / 未知异常
+    register_exception_handlers(app)
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 

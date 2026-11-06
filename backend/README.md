@@ -29,7 +29,8 @@ backend/
 ├── migrations/             # Alembic 迁移脚本
 ├── app/
 │   ├── main.py             # FastAPI 入口与 lifespan
-│   ├── core/               # config.py、logging.py
+│   ├── core/               # config/logging/security、异常体系、请求上下文中间件
+│   ├── schemas/            # Pydantic 模型（error.py：统一错误响应）
 │   ├── db/                 # session.py、base.py、models/
 │   └── api/v1/             # router.py 与 endpoints/（health.py）
 └── tests/                  # pytest；集成测试需 --run-integration
@@ -97,6 +98,111 @@ uv run alembic current                                                # 当前�
 - 迁移与 `langchain-postgres` 使用同步 psycopg 连接；HTTP 请求的异步引擎使用 asyncpg。
   原因是 psycopg 3 的异步模式不支持 Windows 默认的 `ProactorEventLoop`。
 
+## 异常处理
+
+全局异常处理由以下模块组成：
+
+| 模块 | 职责 |
+| --- | --- |
+| `app/core/error_codes.py` | 统一错误码 `ErrorCode` 与 HTTP 状态码 → 错误码的默认映射 |
+| `app/core/exceptions.py` | 项目自定义异常基类 `AppException` 与常用子类（400 / 401 / 403 / 404 / 409 / 422 / 429 / 5xx） |
+| `app/core/exception_handlers.py` | 各类异常 → 统一错误响应的转换，`register_exception_handlers()` 在 `create_app()` 中注册 |
+| `app/core/middleware.py` | `RequestContextMiddleware`：生成 / 透传 `X-Request-ID`，并绑定日志上下文 |
+| `app/schemas/error.py` | 错误响应模型 `ErrorResponse` / `FieldError`（可直接用于 OpenAPI） |
+
+### 统一错误响应
+
+所有异常（框架内置 404/405、参数校验、数据库错误与未知异常）都返回同一结构：
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "请求参数校验失败",
+  "details": {
+    "errors": [
+      {
+        "field": "body.email",
+        "message": "value is not a valid email address",
+        "type": "value_error"
+      }
+    ]
+  },
+  "request_id": "e23358f43b3b476381834bb857b089db",
+  "timestamp": "2026-11-06T04:10:22.568394Z"
+}
+```
+
+- `code`：稳定错误码，前端据此做分支，取值见 `app/core/error_codes.py`。
+- `message`：可直接展示给用户的说明。
+- `details`：可选上下文；数据库 / 响应校验等内部细节，以及 5xx 自定义异常的 `details`，
+  只在非生产环境返回。
+- `request_id`：请求追踪 ID，同时写入响应头 `X-Request-ID`；客户端传入合法同名请求头时原样沿用。
+- `timestamp`：错误发生时间（UTC）。
+
+### 异常类型与状态码映射
+
+| 异常 | HTTP | 错误码 | 说明 |
+| --- | --- | --- | --- |
+| `AppException` 及子类 | 异常类声明的 `status_code` | 异常类声明的 `code` | 业务代码主动抛出；WebSocket 场景以 1008 / 1011 关闭连接 |
+| `HTTPException`（FastAPI / Starlette） | 原状态码 | 按状态码映射，如 `NOT_FOUND` | 保留响应头；未自定义 `detail` 时使用中文默认文案 |
+| `WebSocketException` | 异常指定的 close code | — | 按指定 code 关闭连接 |
+| `RequestValidationError` | 422 | `VALIDATION_ERROR` | `details.errors` 给出字段级错误，不包含原始输入 |
+| `ResponseValidationError` | 500 | `RESPONSE_VALIDATION_ERROR` | 服务端返回不符合 `response_model` |
+| `WebSocketRequestValidationError` | WS 1008 | — | 关闭 WebSocket 连接 |
+| `IntegrityError` | 409 | `DATABASE_CONFLICT` | 唯一约束 / 外键 / 非空等冲突 |
+| `OperationalError` | 503 | `DATABASE_UNAVAILABLE` | 连接失败、连接中断 |
+| `sqlalchemy.exc.TimeoutError` | 503 | `DATABASE_TIMEOUT` | 连接池获取连接超时 |
+| `NoResultFound` | 404 | `NOT_FOUND` | `one()` / `scalar_one()` 未查到数据 |
+| `MultipleResultsFound` | 500 | `DATABASE_ERROR` | 期望唯一结果却返回多条 |
+| 其他 `SQLAlchemyError` | 500 | `DATABASE_ERROR` | 数据库异常兜底 |
+| 其他未捕获异常 | 500 | `INTERNAL_ERROR` | 完整堆栈只写日志，客户端只看到通用文案 |
+
+### 在业务代码中使用
+
+```python
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import ConflictError, NotFoundError
+from app.db.models import User
+
+
+async def get_user(db: AsyncSession, user_id: UUID) -> User:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise NotFoundError("用户不存在", details={"user_id": str(user_id)})
+    return user
+
+
+async def create_user(db: AsyncSession, email: str) -> User:
+    if await db.scalar(select(User.id).where(User.email == email)):
+        raise ConflictError("邮箱已被注册", details={"field": "email"})
+    ...
+```
+
+新增业务异常：继承 `AppException` 并声明 `status_code` / `code` / `default_message`；
+新错误码同时加入 `ErrorCode`。只有需要特殊响应格式时才新增处理器。
+
+日志约定：4xx 记 `warning`，5xx 记 `error` 并附堆栈；每条日志自动带上
+`request_id`、`method`、`path`，可与错误响应中的 `request_id` 对应排查。
+
+> 需要精确控制状态码或响应头（如 401 的 `WWW-Authenticate`）时仍可直接抛
+> `HTTPException`，它同样会走统一响应格式。
+
+### 在 OpenAPI 中声明错误响应（可选）
+
+```python
+from app.schemas.error import ErrorResponse
+
+@router.post(
+    "/users",
+    responses={409: {"model": ErrorResponse, "description": "邮箱已注册"}},
+)
+async def create_user(...): ...
+```
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -124,6 +230,8 @@ uv run alembic current                                                # 当前�
 ## 开发约定
 
 - 新接口：在 `app/api/v1/endpoints/<domain>.py` 定义，并注册到 `app/api/v1/router.py`。
+- 业务异常统一抛 `app/core/exceptions.py` 中的异常（如 `NotFoundError`、`ConflictError`），
+  不要在每个接口里手写错误响应；确需精确控制状态码 / 响应头时可用 `HTTPException`。
 - 配置统一通过 `app.core.config.settings` 读取，不要直接读 `os.environ`。
 - 默认测试不依赖外部服务；依赖 PostgreSQL / Redis / LLM 的测试加 `@pytest.mark.integration`。
 - 提交前安装 pre-commit（在仓库根执行上面的安装命令）；钩子会运行 black、isort、flake8 等检查，
