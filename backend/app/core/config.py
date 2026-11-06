@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
+    # --- 密码哈希（Argon2id，内存单位 KiB）---
+    # 默认低于 argon2-cffi 的 64 MiB / 3 次 / 4 并行，可按机器性能调整；
+    # 生产环境可适当调高（OWASP 最低建议为 19 MiB / 2 次 / 1 并行）。
+    argon2_time_cost: int = 2
+    argon2_memory_cost: int = 32768
+    argon2_parallelism: int = 2
+
     # --- LLM / Embedding ---
     llm_api_key: str | None = None
     llm_base_url: str | None = None

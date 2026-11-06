@@ -108,6 +108,7 @@ uv run alembic current                                                # 当前�
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery / 缓存（暂无 redis 服务） |
 | `JWT_SECRET` | `change-me-in-production` | 生产环境必须修改 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Token 有效期 |
+| `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST` / `ARGON2_PARALLELISM` | `2` / `32768` / `2` | Argon2id 参数（内存单位 KiB） |
 | `LLM_API_KEY` / `LLM_BASE_URL` | 空 | 大模型密钥与代理地址 |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `text-embedding-3-small` / `1536` | 向量模型与维度 |
 | `CORS_ORIGINS` | 本地前端 5173 | 逗号分隔的允许来源 |
