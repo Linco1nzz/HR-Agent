@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 18080
     api_v1_prefix: str = "/api/v1"
     log_level: str = "INFO"
 

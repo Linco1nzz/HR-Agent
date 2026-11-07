@@ -55,14 +55,14 @@ cp .env.example .env
 docker compose up -d
 
 # 4. 启动开发服务器
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 18080
 ```
 
 启动后：
 
-- Swagger 文档：<http://127.0.0.1:8000/docs>
-- 存活探针：<http://127.0.0.1:8000/api/v1/health>
-- 就绪探针（会查库）：<http://127.0.0.1:8000/api/v1/health/ready>
+- Swagger 文档：<http://127.0.0.1:18080/docs>
+- 存活探针：<http://127.0.0.1:18080/api/v1/health>
+- 就绪探针（会查库）：<http://127.0.0.1:18080/api/v1/health/ready>
 
 > 本仓库的 `backend/.env` 已按根目录 `.env` 中的密码生成；换机器或改密码后重新复制并修改。
 
@@ -217,7 +217,7 @@ async def create_user(...): ...
 ### 登录示例
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+curl -X POST http://127.0.0.1:18080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "testuser", "password": "test123"}'
 ```
@@ -250,7 +250,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
 后续请求携带令牌：
 
 ```bash
-curl http://127.0.0.1:8000/api/v1/auth/me \
+curl http://127.0.0.1:18080/api/v1/auth/me \
   -H "Authorization: Bearer <access_token>"
 ```
 

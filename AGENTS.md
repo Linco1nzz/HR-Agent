@@ -1,15 +1,23 @@
 # AGENTS.md
 
-HR-Agent：AI 人力资源助手。当前仅后端（FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL 17/pgvector），`frontend/` 尚未实现。
+HR-Agent：AI 人力资源助手。后端 FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL 17/pgvector；前端 Vue 3 + Vite + Element Plus + Pinia + ECharts（`frontend/`）。
 
-## 常用命令（均在 backend/ 下执行）
+## 后端常用命令（均在 backend/ 下执行）
 
 - 依赖统一用 **uv**（不要用 pip）；首次执行 `uv sync`。
-- 启动：`uv run uvicorn app.main:app --reload --port 8000`（文档 `/docs`，接口前缀 `/api/v1`）。
+- 启动：`uv run uvicorn app.main:app --reload --port 18080`（文档 `/docs`，接口前缀 `/api/v1`）。
 - 测试：`uv run pytest`；集成测试需数据库：`uv run pytest --run-integration`。
 - 质量：`uv run black .`、`uv run isort .`、`uv run flake8 app tests`、`uv run mypy app`。
 - 数据库：仓库根执行 `docker compose up -d`（宿主端口 5433）；初始化表与测试账号：`uv run python scripts/init_db.py`（`testuser / test123`）。
 - 迁移：`uv run alembic upgrade head`；生成迁移：`uv run alembic revision --autogenerate -m "..."`。
+
+## 前端常用命令（均在 frontend/ 下执行）
+
+- 依赖统一用 **pnpm**；首次执行 `pnpm install`。
+- 启动：`pnpm dev`（<http://127.0.0.1:5173>，`/api` 代理到后端 18080）。
+- 质量：`pnpm type-check`、`pnpm lint`、`pnpm build`（提交前至少全部通过）。
+- Element Plus 组件与 `ElMessage` 自动按需引入；生成文件 `src/auto-imports.d.ts`、`src/components.d.ts` 需提交。
+- 新增 ECharts 图表类型时在 `src/plugins/echarts.ts` 注册，统一用 `BaseChart` 渲染。
 
 ## 代码规则
 
@@ -38,5 +46,5 @@ HR-Agent：AI 人力资源助手。当前仅后端（FastAPI + SQLAlchemy 2 + Al
 
 ## 维护
 
-- 本文件只保留高频、易错、影响执行的规则；细节见 `backend/README.md`。
+- 本文件只保留高频、易错、影响执行的规则；细节见 `backend/README.md`、`frontend/README.md`。
 - 迭代原则：同类问题重复出现才补充，避免罗列清单、防止膨胀。
