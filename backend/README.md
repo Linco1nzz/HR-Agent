@@ -29,10 +29,11 @@ backend/
 ├── migrations/             # Alembic 迁移脚本
 ├── app/
 │   ├── main.py             # FastAPI 入口与 lifespan
-│   ├── core/               # config/logging/security、异常体系、请求上下文中间件
-│   ├── schemas/            # Pydantic 模型（error.py：统一错误响应）
+│   ├── core/               # config/logging/security（密码哈希 + JWT）、异常体系、请求上下文中间件
+│   ├── schemas/            # Pydantic 模型（error.py 统一错误响应、auth.py 登录、user.py 用户信息）
 │   ├── db/                 # session.py、base.py、models/
-│   └── api/v1/             # router.py 与 endpoints/（health.py）
+│   ├── services/           # 业务服务层（auth_service.py 认证、user_service.py 用户查询）
+│   └── api/                # deps.py（当前登录用户依赖）、v1/router.py 与 v1/endpoints/
 └── tests/                  # pytest；集成测试需 --run-integration
 ```
 
@@ -203,6 +204,87 @@ from app.schemas.error import ErrorResponse
 async def create_user(...): ...
 ```
 
+## 登录与鉴权
+
+登录接口返回 JWT 访问令牌，受保护接口通过 `Authorization: Bearer <token>` 访问。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/auth/login` | 用户名或邮箱 + 密码登录，返回令牌与用户信息 | 否 |
+| `GET` | `/api/v1/auth/me` | 获取当前登录用户 | 是 |
+| `POST` | `/api/v1/auth/logout` | 退出登录（JWT 无状态，仅记录日志，客户端需删除本地令牌） | 是 |
+
+### 登录示例
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "testuser", "password": "test123"}'
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 86400,
+  "user": {
+    "id": "cce3c976-cba8-40c8-8529-e55d669a5074",
+    "username": "testuser",
+    "email": "testuser@example.com",
+    "full_name": "Test Administrator",
+    "phone": null,
+    "department": null,
+    "position": null,
+    "employee_id": null,
+    "is_superuser": true,
+    "is_verified": true,
+    "is_active": true,
+    "bio": null,
+    "avatar_url": null,
+    "last_login": "2026-11-06T10:37:18.251424Z",
+    "roles": ["超级管理员"]
+  }
+}
+```
+
+后续请求携带令牌：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/auth/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### 认证相关错误码
+
+| HTTP | 错误码 | 说明 |
+| --- | --- | --- |
+| 401 | `INVALID_CREDENTIALS` | 用户名或密码错误（账号不存在与密码错误返回同一错误码，避免账号枚举） |
+| 401 | `INVALID_TOKEN` | 未携带令牌、令牌格式 / 签名非法，或令牌对应用户已不存在 |
+| 401 | `TOKEN_EXPIRED` | 令牌已过期，需要重新登录 |
+| 403 | `ACCOUNT_DISABLED` | 账号已被停用 |
+
+401 响应都会带上 `WWW-Authenticate: Bearer`。令牌默认有效期由
+`ACCESS_TOKEN_EXPIRE_MINUTES` 控制（默认 1440 分钟），载荷包含 `sub`（用户 ID）、
+`iat` / `exp`、`jti` 与 `type`。`JWT_SECRET` 生产环境必须替换为不少于 32 字节的随机字符串。
+
+### 在业务接口中要求登录
+
+```python
+from fastapi import APIRouter
+
+from app.api.deps import CurrentUser
+
+router = APIRouter()
+
+
+@router.get("/profile")
+async def read_profile(current_user: CurrentUser) -> dict[str, str]:
+    return {"username": current_user.username}
+```
+
+`CurrentUser` 会自动校验 Bearer 令牌、加载用户（含角色）并检查账号是否启用；
+需要角色 / 权限判断时可在此基础上继续扩展依赖。
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -212,8 +294,8 @@ async def create_user(...): ...
 | `LOG_LEVEL` | `INFO` | 日志级别；生产环境输出 JSON |
 | `DATABASE_URL` | 本机 5433 的 hr_agent | SQLAlchemy 连接串 |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery / 缓存（暂无 redis 服务） |
-| `JWT_SECRET` | `change-me-in-production` | 生产环境必须修改 |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Token 有效期 |
+| `JWT_SECRET` | `change-me-in-production-please-32bytes` | JWT 签名密钥；生产环境必须改为不少于 32 字节的随机字符串 |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | 访问令牌有效期（分钟） |
 | `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST` / `ARGON2_PARALLELISM` | `2` / `32768` / `2` | Argon2id 参数（内存单位 KiB） |
 | `LLM_API_KEY` / `LLM_BASE_URL` | 空 | 大模型密钥与代理地址 |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `text-embedding-3-small` / `1536` | 向量模型与维度 |
@@ -230,6 +312,8 @@ async def create_user(...): ...
 ## 开发约定
 
 - 新接口：在 `app/api/v1/endpoints/<domain>.py` 定义，并注册到 `app/api/v1/router.py`。
+- 业务逻辑放在 `app/services/<domain>_service.py`，接口层只做参数校验、调用服务与组装响应；
+  例如登录流程在 `app/services/auth_service.py`，用户查询在 `app/services/user_service.py`。
 - 业务异常统一抛 `app/core/exceptions.py` 中的异常（如 `NotFoundError`、`ConflictError`），
   不要在每个接口里手写错误响应；确需精确控制状态码 / 响应头时可用 `HTTPException`。
 - 配置统一通过 `app.core.config.settings` 读取，不要直接读 `os.environ`。

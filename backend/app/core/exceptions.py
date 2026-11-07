@@ -35,6 +35,8 @@ class AppException(Exception):
     status_code: ClassVar[int] = 500
     code: ClassVar[ErrorCode] = ErrorCode.INTERNAL_ERROR
     default_message: ClassVar[str] = "服务器内部错误"
+    #: 未经调用方覆盖时默认透传的响应头（如 401 的 ``WWW-Authenticate``）
+    default_headers: ClassVar[Mapping[str, str] | None] = None
 
     def __init__(
         self,
@@ -45,7 +47,8 @@ class AppException(Exception):
     ) -> None:
         self.message = message or self.default_message
         self.details = details
-        self.headers = dict(headers) if headers else None
+        resolved_headers = headers or self.default_headers
+        self.headers = dict(resolved_headers) if resolved_headers else None
         super().__init__(self.message)
 
     def __repr__(self) -> str:
@@ -72,6 +75,8 @@ class UnauthorizedError(AppException):
     status_code = 401
     code = ErrorCode.UNAUTHORIZED
     default_message = "未认证或登录已过期"
+    #: RFC 7235：携带 Bearer 令牌的 401 响应应声明认证方案
+    default_headers: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
 
 
 class ForbiddenError(AppException):
@@ -112,6 +117,37 @@ class RateLimitError(AppException):
     status_code = 429
     code = ErrorCode.TOO_MANY_REQUESTS
     default_message = "请求过于频繁，请稍后重试"
+
+
+# ---------------------------------------------------------------------------
+# 认证 / 授权：401 / 403 的细分场景，便于前端按错误码做不同提示
+# ---------------------------------------------------------------------------
+class InvalidCredentialsError(UnauthorizedError):
+    """401：用户名或密码错误（不区分账号是否存在，避免账号枚举）。"""
+
+    code = ErrorCode.INVALID_CREDENTIALS
+    default_message = "用户名或密码错误"
+
+
+class InvalidTokenError(UnauthorizedError):
+    """401：未携带令牌、令牌格式 / 签名非法，或令牌对应用户已失效。"""
+
+    code = ErrorCode.INVALID_TOKEN
+    default_message = "登录凭证无效，请重新登录"
+
+
+class TokenExpiredError(UnauthorizedError):
+    """401：令牌已过期，需要重新登录。"""
+
+    code = ErrorCode.TOKEN_EXPIRED
+    default_message = "登录已过期，请重新登录"
+
+
+class AccountDisabledError(ForbiddenError):
+    """403：账号存在但已被停用。"""
+
+    code = ErrorCode.ACCOUNT_DISABLED
+    default_message = "账号已被停用，请联系管理员"
 
 
 # ---------------------------------------------------------------------------

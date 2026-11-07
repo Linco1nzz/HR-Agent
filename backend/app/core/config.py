@@ -46,7 +46,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # --- 鉴权 ---
-    jwt_secret: str = "change-me-in-production"
+    # HS256 建议密钥不短于 32 字节；生产环境必须替换为随机密钥
+    jwt_secret: str = "change-me-in-production-please-32bytes"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
