@@ -187,3 +187,55 @@ class ServiceUnavailableError(AppException):
     status_code = 503
     code = ErrorCode.SERVICE_UNAVAILABLE
     default_message = "服务暂时不可用"
+
+
+# ---------------------------------------------------------------------------
+# Dify Chatflow
+# ---------------------------------------------------------------------------
+class DifyNotConfiguredError(ServiceUnavailableError):
+    """503：未配置 Dify 应用密钥，无法发起调用。"""
+
+    code = ErrorCode.DIFY_NOT_CONFIGURED
+    default_message = "Dify 服务未配置，请设置 DIFY_API_KEY"
+
+
+class DifyUnauthorizedError(ExternalServiceError):
+    """502：Dify 应用密钥无效或没有该应用的访问权限。"""
+
+    code = ErrorCode.DIFY_UNAUTHORIZED
+    default_message = "Dify 应用鉴权失败，请检查 DIFY_API_KEY"
+
+
+class DifyUnavailableError(ServiceUnavailableError):
+    """503：Dify 服务不可达、超时或返回 5xx。"""
+
+    code = ErrorCode.DIFY_UNAVAILABLE
+    default_message = "Dify 服务暂时不可用，请稍后重试"
+
+
+class DifyWorkflowFailedError(ExternalServiceError):
+    """502：Dify 工作流执行失败或返回业务错误。"""
+
+    code = ErrorCode.DIFY_WORKFLOW_FAILED
+    default_message = "Dify 工作流执行失败"
+
+
+class DifyInvalidParamError(UnprocessableEntityError):
+    """422：Dify 判定请求参数不合法（如缺少必填变量）。"""
+
+    code = ErrorCode.DIFY_INVALID_PARAM
+    default_message = "Dify 工作流参数不合法"
+
+
+class DifyInvalidResponseError(ExternalServiceError):
+    """502：Dify 返回了无法解析或不符合预期的数据。"""
+
+    code = ErrorCode.DIFY_INVALID_RESPONSE
+    default_message = "Dify 返回数据格式异常"
+
+
+class WorkflowValidationError(UnprocessableEntityError):
+    """422：调用方缺少当前 type 所需的 query / inputs。"""
+
+    code = ErrorCode.WORKFLOW_VALIDATION_ERROR
+    default_message = "工作流输入不完整"

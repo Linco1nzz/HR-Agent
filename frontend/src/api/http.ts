@@ -28,6 +28,11 @@ export function setUnauthorizedHandler(handler: () => void): void {
   unauthorizedHandler = handler
 }
 
+/** fetch / SSE 等绕过 Axios 的请求在收到 401 时手动触发统一登出。 */
+export function notifyUnauthorized(): void {
+  unauthorizedHandler?.()
+}
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 15_000,

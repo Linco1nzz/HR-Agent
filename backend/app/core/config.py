@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
 
+    # --- Dify Chatflow（advanced-chat 应用，API 前缀需包含 /v1）---
+    dify_base_url: str = "http://127.0.0.1/v1"
+    dify_api_key: str | None = None
+    #: 单次工作流允许的最长等待时间（LLM 生成可能较慢）
+    dify_timeout_seconds: float = 120.0
+    dify_connect_timeout_seconds: float = 5.0
+
     # --- CORS（逗号分隔的前端地址）---
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

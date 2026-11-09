@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
+import httpx
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import InvalidTokenError
 from app.db.models import User
 from app.db.session import get_db
-from app.services import auth_service
+from app.services import auth_service, dify_service
 
 #: ``auto_error=False``：缺少 / 格式错误的 Authorization 头也交给本模块处理，
 #: 以保持错误响应格式与错误码统一。
@@ -38,3 +39,6 @@ async def get_current_user(
 
 #: 需要登录的接口直接声明 ``current_user: CurrentUser``
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+#: Dify HTTP 客户端（进程内复用；测试中可覆盖 ``dify_service.get_client``）
+DifyClient = Annotated[httpx.AsyncClient, Depends(dify_service.get_client)]

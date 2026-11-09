@@ -14,6 +14,7 @@ from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestContextMiddleware
 from app.db.session import dispose_engine
+from app.services import dify_service
 
 setup_logging()
 logger = get_logger(__name__)
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
     yield
     await dispose_engine()
+    await dify_service.close_client()
     logger.info("application_shutdown")
 
 

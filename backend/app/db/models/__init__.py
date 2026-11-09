@@ -18,6 +18,7 @@
 已定义的模型统一在此导入，供 Alembic 及业务代码使用。
 """
 
+from app.db.models.job_description import JobDescription
 from app.db.models.user import Role, User, UserRoleAssociation
 
-__all__ = ["Role", "User", "UserRoleAssociation"]
+__all__ = ["JobDescription", "Role", "User", "UserRoleAssociation"]

@@ -10,6 +10,7 @@ FastAPI + SQLAlchemy 2 + Alembic + LangChain / LangGraph，依赖与虚拟环境
 | Web 框架 | FastAPI、Uvicorn |
 | ORM / 迁移 | SQLAlchemy 2、Alembic（asyncpg 异步查询 / psycopg 同步迁移） |
 | AI 编排 | LangChain、LangGraph、langchain-postgres、OpenAI、DashScope |
+| HR 工作流 | Dify（Chatflow / advanced-chat，本地部署） |
 | 任务队列 / 调度 | Celery + Redis、APScheduler |
 | 配置 / 日志 | pydantic-settings、structlog |
 | 测试 / 质量 | pytest、pytest-asyncio、black、isort、flake8、mypy、pre-commit |
@@ -30,10 +31,10 @@ backend/
 ├── app/
 │   ├── main.py             # FastAPI 入口与 lifespan
 │   ├── core/               # config/logging/security（密码哈希 + JWT）、异常体系、请求上下文中间件
-│   ├── schemas/            # Pydantic 模型（error.py 统一错误响应、auth.py 登录、user.py 用户信息）
+│   ├── schemas/            # Pydantic 模型（error/auth/user/ai/jd.py）
 │   ├── db/                 # session.py、base.py、models/
-│   ├── services/           # 业务服务层（auth_service.py 认证、user_service.py 用户查询）
-│   └── api/                # deps.py（当前登录用户依赖）、v1/router.py 与 v1/endpoints/
+│   ├── services/           # 业务服务层（auth/user/dify_service/jd_service.py）
+│   └── api/                # deps.py（当前登录用户 / Dify 客户端依赖）、v1/router.py 与 v1/endpoints/
 └── tests/                  # pytest；集成测试需 --run-integration
 ```
 
@@ -285,6 +286,144 @@ async def read_profile(current_user: CurrentUser) -> dict[str, str]:
 `CurrentUser` 会自动校验 Bearer 令牌、加载用户（含角色）并检查账号是否启用；
 需要角色 / 权限判断时可在此基础上继续扩展依赖。
 
+## JD 管理
+
+JD（职位描述）保存于 `job_description` 表，技能列表与附加元数据使用 PostgreSQL
+`JSONB`。前端页面为 `/jds`，支持列表、详情、新建、AI 生成、编辑与状态筛选。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/jds` | 分页列表，支持 `keyword` / `status` | 是 |
+| `POST` | `/api/v1/jds` | 保存手动填写或 AI 生成的 JD | 是 |
+| `GET` | `/api/v1/jds/{id}` | 详情（含完整正文、技能、生成信息） | 是 |
+| `PATCH` | `/api/v1/jds/{id}` | 局部编辑 | 是 |
+| `POST` | `/api/v1/jds/generate` | 调用 Dify type=1 阻塞生成 JD，**不落库** | 是 |
+| `POST` | `/api/v1/jds/generate/stream` | 流式生成 JD（SSE），**不落库** | 是 |
+
+字段与 `app/schemas/jd.py` 对齐：`title` / `content` 必填，`department`、
+`location`、`salary_range`、`experience_level`、`education`、`job_type`、
+`skills`、`requirements`、`status`、`meta_data`、`conversation_id`、
+`workflow_type` 可选。`status` 取值为 `draft` / `generated` / `published` /
+`archived`，默认 `draft`。
+
+生成流程：前端提交表单 → `POST /jds/generate/stream` → 后端调用
+`dify_service.stream_chat(type=1)`，解析 Dify SSE 后归一化为：
+
+| 事件 | data | 说明 |
+| --- | --- | --- |
+| `start` | `{"workflow_type":"jd_generation"}` | 流已建立 |
+| `delta` | `{"content":"..."}` | 增量文本 |
+| `done` | `GenerateJDResponse` | 完整 `content` / `conversation_id` / `usage` |
+| `error` | `{"status","code","message"}` | 流式阶段的 Dify / 超时错误 |
+
+前端用 `fetch` + `ReadableStream` 边收边渲染，收到 `done` 后再调用
+`POST /jds`（或 `PATCH /jds/{id}`）落库。阻塞接口
+`POST /jds/generate` 仍保留，供不需要流式的调用方使用。生成接口的 Dify 错误
+沿用 [错误码](#错误码) 中的 `DIFY_*`。
+
+首次部署或拉取代码后执行：
+
+```bash
+uv run alembic upgrade head
+```
+
+## Dify Chatflow 接入
+
+HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
+不是 Workflow 类型，因此后端调用 `POST /v1/chat-messages`，而不是
+`POST /v1/workflows/run`。Chatflow 开始节点用数字变量 `type` 分支：
+
+| type | 流程 | query 含义 | 必填 inputs |
+| --- | --- | --- | --- |
+| `1` | JD 生成 | 岗位需求 / 招聘要求 | — |
+| `2` | 简历评价标准 | JD 内容 | — |
+| `3` | 简历评价 | 简历评价标准（通常来自 type=2） | `jianli` |
+| `4` | 面试方案 | 可选补充说明（省略时后端补默认 query） | `jd`、`jianli` |
+| `5` | 试卷生成 | 试卷要求（题型 / 数量 / 分值） | `fileContent` |
+| `6` | 阅卷评分 | 用户试卷内容（JSON） | — |
+
+### 接口
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/ai/types` | 返回上述类型及每个类型的入参契约 | 是 |
+| `GET` | `/api/v1/ai/parameters` | 代理 Dify `GET /v1/parameters`，含输入表单 / 开场白 | 是 |
+| `POST` | `/api/v1/ai/chat` | 阻塞调用，等 Dify 完整生成后返回 | 是 |
+| `POST` | `/api/v1/ai/chat/stream` | SSE 流式调用，透传 Dify 事件 | 是 |
+
+请求体（阻塞 / 流式相同）：
+
+```json
+{
+  "type": 1,
+  "query": "招聘一名前端工程师，3 年以上经验",
+  "inputs": {},
+  "conversation_id": null,
+  "auto_generate_name": true
+}
+```
+
+- `type` 必填，取值 1–6；`inputs` 中的 `type` 会被顶层值覆盖。
+- `query` 在 type=1/2/3/5/6 时必填；type=4 可为空，后端会补一个默认 query
+  以满足 Dify `/chat-messages` 对 `query` 非空的要求（该分支实际只使用 `jd` / `jianli`）。
+- `conversation_id` 首次省略，后续传入上一次响应中的值即可延续多轮会话。
+- `files` 可透传 Dify 文件对象；当前流程使用文本变量 `fileContent`，不依赖二进制上传。
+
+### 调用示例
+
+```bash
+TOKEN="<access_token>"
+
+# 阻塞：生成 JD
+curl -X POST http://127.0.0.1:18080/api/v1/ai/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type": 1, "query": "招聘一名前端工程师，3 年以上经验"}'
+
+# 流式：浏览器 / fetch 读取 text/event-stream
+curl -N -X POST http://127.0.0.1:18080/api/v1/ai/chat/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type": 4, "inputs": {"jd": "...", "jianli": "..."}}'
+```
+
+流式响应的每个 `data:` 行都是 JSON，事件类型在 `event` 字段中，可能是
+`workflow_started`、`node_started`、`node_finished`、`message`、`message_end`、
+`workflow_finished`。流式阶段无法再改 HTTP 状态码，因此 Dify 4xx/5xx、超时、
+断连会以错误事件返回：
+
+```text
+data: {"event":"error","status":503,"code":"DIFY_UNAVAILABLE","message":"..."}
+```
+
+### 错误码
+
+| HTTP | 错误码 | 说明 |
+| --- | --- | --- |
+| 422 | `WORKFLOW_VALIDATION_ERROR` | 当前 type 缺少 query / 必填 inputs，或输入超过长度限制 |
+| 422 | `DIFY_INVALID_PARAM` | Dify 判定参数不合法 |
+| 502 | `DIFY_UNAUTHORIZED` | `DIFY_API_KEY` 无效或无应用权限 |
+| 502 | `DIFY_WORKFLOW_FAILED` | Dify 工作流执行失败 |
+| 502 | `DIFY_INVALID_RESPONSE` | Dify 返回非 JSON / 缺少 `answer` |
+| 503 | `DIFY_NOT_CONFIGURED` | 未配置 `DIFY_API_KEY` |
+| 503 | `DIFY_UNAVAILABLE` | Dify 不可达、超时或返回 5xx |
+
+### 常见问题
+
+- `type=3` 返回 `DIFY_INVALID_PARAM`，且 `details.dify_message` 包含
+  `Structured output validation failed`：当前 Dify 的 `LLM 3` 节点启用了结构化输出，
+  但 schema 是空对象（`additionalProperties: false`），模型输出必然校验失败。
+  在 Dify 工作流中关闭该节点的“结构化输出”，或补全与实际 JSON 输出匹配的 schema
+  后重新发布即可；后端已正确透传 Dify 的错误信息。
+
+### 本地 Dify 地址说明
+
+本机 Dify 的 `api` 容器只暴露容器内 `5001`，宿主机未发布该端口，直接访问
+`http://127.0.0.1:5001/v1` 会失败。当前通过 Dify nginx 的 `http://127.0.0.1/v1`
+接入；若要让 5001 直连，可在 Dify 的 `docker-compose.yaml` 中为 `api` 服务增加
+`5001:5001` 端口映射后重启，并把 `DIFY_BASE_URL` 改为
+`http://127.0.0.1:5001/v1`。
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -299,6 +438,9 @@ async def read_profile(current_user: CurrentUser) -> dict[str, str]:
 | `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST` / `ARGON2_PARALLELISM` | `2` / `32768` / `2` | Argon2id 参数（内存单位 KiB） |
 | `LLM_API_KEY` / `LLM_BASE_URL` | 空 | 大模型密钥与代理地址 |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `text-embedding-3-small` / `1536` | 向量模型与维度 |
+| `DIFY_BASE_URL` | `http://127.0.0.1/v1` | Dify API 地址，必须包含 `/v1` |
+| `DIFY_API_KEY` | 空 | Dify 应用「API 访问」密钥（`app-` 开头） |
+| `DIFY_TIMEOUT_SECONDS` / `DIFY_CONNECT_TIMEOUT_SECONDS` | `120` / `5` | 工作流读取超时 / 连接超时（秒） |
 | `CORS_ORIGINS` | 本地前端 5173 | 逗号分隔的允许来源 |
 
 ## 依赖源说明

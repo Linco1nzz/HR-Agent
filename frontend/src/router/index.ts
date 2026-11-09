@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/DashboardView.vue'),
         meta: { title: '工作台', requiresAuth: true },
       },
+      {
+        path: 'jds',
+        name: 'jds',
+        component: () => import('@/views/JdView.vue'),
+        meta: { title: 'JD 管理', requiresAuth: true },
+      },
     ],
   },
   {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { ArrowDown, Expand, Fold, House, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, Document, Expand, Fold, House, SwitchButton } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -118,6 +118,10 @@ onBeforeUnmount(() => {
           <el-menu-item index="/dashboard">
             <el-icon><House /></el-icon>
             <template #title>工作台</template>
+          </el-menu-item>
+          <el-menu-item index="/jds">
+            <el-icon><Document /></el-icon>
+            <template #title>JD 管理</template>
           </el-menu-item>
         </el-menu>
       </nav>
