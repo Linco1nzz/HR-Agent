@@ -55,15 +55,15 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:18080`，因此浏览器侧没有
 ```
 frontend/
 ├── src/
-│   ├── api/                 # Axios 实例、认证 / JD 接口、后端 Schema 类型
-│   ├── components/          # BaseChart、JdMarkdown、JdEditorDrawer
+│   ├── api/                 # Axios 实例、认证 / JD / 评分标准接口、后端 Schema 类型
+│   ├── components/          # BaseChart、JdMarkdown、JD / 评分标准编辑器
 │   ├── layouts/             # 工作台布局（侧边栏 / 顶栏 / 内容区）
 │   ├── plugins/             # echarts 按需注册
 │   ├── router/              # 路由表、登录守卫、401 统一跳转
 │   ├── stores/              # Pinia：会话与用户信息
 │   ├── styles/              # 全局样式与 Element Plus 主题变量
 │   ├── utils/               # localStorage 令牌读写、SSE 帧解析
-│   ├── views/               # 登录、工作台、JD 管理、404
+│   ├── views/               # 登录、工作台、JD 管理（含简历评分标准）、404
 │   ├── App.vue              # ElConfigProvider + router-view
 │   └── main.ts              # 应用入口
 ├── public/favicon.svg
@@ -98,22 +98,34 @@ frontend/
 
 ### 已接入的接口
 
-| 方法    | 路径                          | 用途                           |
-| ------- | ----------------------------- | ------------------------------ |
-| `POST`  | `/api/v1/auth/login`          | 登录并获取令牌                 |
-| `GET`   | `/api/v1/auth/me`             | 恢复当前用户                   |
-| `POST`  | `/api/v1/auth/logout`         | 退出登录（本地令牌一定会清除） |
-| `GET`   | `/api/v1/jds`                 | JD 分页列表                    |
-| `POST`  | `/api/v1/jds`                 | 保存 JD                        |
-| `GET`   | `/api/v1/jds/{id}`            | JD 详情                        |
-| `PATCH` | `/api/v1/jds/{id}`            | 编辑 JD                        |
-| `POST`  | `/api/v1/jds/generate`        | AI 生成 JD（阻塞，不落库）     |
-| `POST`  | `/api/v1/jds/generate/stream` | AI 流式生成 JD（SSE，不落库）  |
+| 方法    | 路径                                       | 用途                               |
+| ------- | ------------------------------------------ | ---------------------------------- |
+| `POST`  | `/api/v1/auth/login`                       | 登录并获取令牌                     |
+| `GET`   | `/api/v1/auth/me`                          | 恢复当前用户                       |
+| `POST`  | `/api/v1/auth/logout`                      | 退出登录（本地令牌一定会清除）     |
+| `GET`   | `/api/v1/jds`                              | JD 分页列表                        |
+| `POST`  | `/api/v1/jds`                              | 保存 JD                            |
+| `GET`   | `/api/v1/jds/{id}`                         | JD 详情                            |
+| `PATCH` | `/api/v1/jds/{id}`                         | 编辑 JD                            |
+| `POST`  | `/api/v1/jds/generate`                     | AI 生成 JD（阻塞，不落库）         |
+| `POST`  | `/api/v1/jds/generate/stream`              | AI 流式生成 JD（SSE，不落库）      |
+| `GET`   | `/api/v1/scoring-criteria`                 | 评分标准分页列表                   |
+| `POST`  | `/api/v1/scoring-criteria`                 | 保存评分标准                       |
+| `GET`   | `/api/v1/scoring-criteria/{id}`            | 评分标准详情                       |
+| `PATCH` | `/api/v1/scoring-criteria/{id}`            | 编辑评分标准                       |
+| `POST`  | `/api/v1/scoring-criteria/generate`        | 根据已有 JD 生成评分标准（不落库） |
+| `POST`  | `/api/v1/scoring-criteria/generate/stream` | 流式生成评分标准（SSE，不落库）    |
 
 JD 管理页（`/jds`）支持列表 / 详情、状态筛选、新建、AI 流式生成与在线编辑。
 AI 生成通过后端 Dify Chatflow type=1 完成：后端把 Dify SSE 归一化为
 `start` / `delta` / `done` / `error`，前端用 `fetch` + `ReadableStream` 边收边渲染；
 Markdown 正文由 `marked` 渲染并经 `DOMPurify` 清洗。
+
+简历评分标准已整合进 JD 管理页（`/jds`）：选中一个 JD 后，在右侧切换到「简历评分
+标准」标签，即可看到该 JD 已有的评分标准卡片、生成新标准并进入编辑。生成时正文会
+实时流式出现，可随时停止；左侧 JD 列表会显示已关联的评分标准数量，方便快速识别哪些
+岗位已经配置。生成结果不自动落库，用户确认后再保存。旧的 `/scoring-criteria` 地址
+会重定向回 `/jds`。
 
 工作台中的统计指标与图表为演示数据，后续业务接口接入时替换 `DashboardView.vue` 中的数据源即可。
 

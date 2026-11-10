@@ -23,7 +23,7 @@ from app.core.exceptions import (
     WorkflowValidationError,
 )
 from app.core.logging import get_logger
-from app.db.models import JobDescription
+from app.db.models import JobDescription, ScoringCriteria
 from app.schemas.ai import ChatRequest, ChatUsage, WorkflowType
 from app.schemas.jd import (
     GenerateJDRequest,
@@ -152,7 +152,7 @@ def strip_markdown(text: str) -> str:
     return re.sub(r"\s+", " ", plain).strip()
 
 
-def to_list_item(record: JobDescription) -> JobDescriptionListItem:
+def to_list_item(record: JobDescription, criteria_count: int = 0) -> JobDescriptionListItem:
     """把 ORM 记录转换为列表项，并生成去格式 / 去换行的正文摘要。"""
     preview = strip_markdown(record.content)
     # 正文通常以标题开头，列表里已经展示过标题，避免摘要重复
@@ -171,10 +171,30 @@ def to_list_item(record: JobDescription) -> JobDescriptionListItem:
         job_type=record.job_type,
         skills=record.skills,
         status=JDStatus(record.status),
+        criteria_count=criteria_count,
         content_preview=preview,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
+
+
+async def count_criteria_by_jd(
+    db: AsyncSession,
+    jd_ids: list[UUID],
+) -> dict[UUID, int]:
+    """批量统计每个 JD 关联的启用中评分标准数量，供列表展示。"""
+    if not jd_ids:
+        return {}
+    stmt = (
+        select(ScoringCriteria.job_description_id, func.count())
+        .where(
+            ScoringCriteria.is_active.is_(True),
+            ScoringCriteria.job_description_id.in_(jd_ids),
+        )
+        .group_by(ScoringCriteria.job_description_id)
+    )
+    rows = (await db.execute(stmt)).all()
+    return {row[0]: int(row[1]) for row in rows if row[0] is not None}
 
 
 # ---------------------------------------------------------------------------

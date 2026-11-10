@@ -154,6 +154,7 @@ class JobDescriptionListItem(BaseModel):
     job_type: str | None = Field(default=None, description="工作类型")
     skills: list[str] | None = Field(default=None, description="技能要求列表")
     status: JDStatus = Field(description="状态")
+    criteria_count: int = Field(default=0, description="该 JD 的简历评分标准数量")
     content_preview: str = Field(description="正文摘要")
     created_at: datetime = Field(description="创建时间")
     updated_at: datetime = Field(description="更新时间")

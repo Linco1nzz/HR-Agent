@@ -37,5 +37,6 @@ declare module 'vue' {
     JdMarkdown: typeof import('./components/JdMarkdown.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ScoringCriteriaEditorDrawer: typeof import('./components/ScoringCriteriaEditorDrawer.vue')['default']
   }
 }

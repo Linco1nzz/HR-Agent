@@ -2,7 +2,8 @@
 
 主要做三件事：
 
-1. 初始化数据库表（``users`` / ``role`` / ``user_role``）。
+1. 初始化数据库表（``users`` / ``role`` / ``user_role`` / ``job_description`` /
+   ``scoring_criteria``）。
 2. 确保存在两个内置角色：普通用户、超级管理员。
 3. 确保存在测试管理员 ``testuser``，并把它绑定到超级管理员角色。
 

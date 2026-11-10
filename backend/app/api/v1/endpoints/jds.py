@@ -63,8 +63,11 @@ async def list_jds(
         keyword=keyword,
         status=status,
     )
+    criteria_counts = await jd_service.count_criteria_by_jd(db, [record.id for record in records])
     return JobDescriptionListResponse(
-        items=[jd_service.to_list_item(record) for record in records],
+        items=[
+            jd_service.to_list_item(record, criteria_counts.get(record.id, 0)) for record in records
+        ],
         total=total,
         page=page,
         page_size=page_size,

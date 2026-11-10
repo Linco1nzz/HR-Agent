@@ -31,9 +31,9 @@ backend/
 ├── app/
 │   ├── main.py             # FastAPI 入口与 lifespan
 │   ├── core/               # config/logging/security（密码哈希 + JWT）、异常体系、请求上下文中间件
-│   ├── schemas/            # Pydantic 模型（error/auth/user/ai/jd.py）
+│   ├── schemas/            # Pydantic 模型（error/auth/user/ai/jd/scoring_criteria.py）
 │   ├── db/                 # session.py、base.py、models/
-│   ├── services/           # 业务服务层（auth/user/dify_service/jd_service.py）
+│   ├── services/           # 业务服务层（auth/user/dify_service/jd_service/scoring_criteria_service.py）
 │   └── api/                # deps.py（当前登录用户 / Dify 客户端依赖）、v1/router.py 与 v1/endpoints/
 └── tests/                  # pytest；集成测试需 --run-integration
 ```
@@ -300,6 +300,8 @@ JD（职位描述）保存于 `job_description` 表，技能列表与附加元�
 | `POST` | `/api/v1/jds/generate` | 调用 Dify type=1 阻塞生成 JD，**不落库** | 是 |
 | `POST` | `/api/v1/jds/generate/stream` | 流式生成 JD（SSE），**不落库** | 是 |
 
+列表项额外返回 `criteria_count`，表示该 JD 已关联的评分标准数量。
+
 字段与 `app/schemas/jd.py` 对齐：`title` / `content` 必填，`department`、
 `location`、`salary_range`、`experience_level`、`education`、`job_type`、
 `skills`、`requirements`、`status`、`meta_data`、`conversation_id`、
@@ -326,6 +328,58 @@ JD（职位描述）保存于 `job_description` 表，技能列表与附加元�
 ```bash
 uv run alembic upgrade head
 ```
+
+## 简历评分标准
+
+评分标准保存于 `scoring_criteria` 表，正文 `content` 为 Markdown，结构化评分维度
+`scoring_dimensions` 与附加数据 `criteria_data` 使用 `JSONB`。`job_description_id`
+记录来源 JD，按项目约定不建数据库外键，由服务层校验关联 JD 是否存在。
+
+评分标准已整合进 JD 管理页 `/jds`：打开某个 JD 后切换到「简历评分标准」标签，
+即可查看该 JD 已有的评分标准、AI 生成新标准并进入编辑；左侧 JD 列表会显示每个
+岗位已关联的评分标准数量。旧的 `/scoring-criteria` 入口会重定向回 `/jds`。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/scoring-criteria` | 分页列表，支持 `keyword` / `status` / `job_description_id` | 是 |
+| `POST` | `/api/v1/scoring-criteria` | 保存手动编辑或 AI 生成的评分标准 | 是 |
+| `GET` | `/api/v1/scoring-criteria/{id}` | 详情（含正文、维度、生成信息） | 是 |
+| `PATCH` | `/api/v1/scoring-criteria/{id}` | 局部编辑 | 是 |
+| `POST` | `/api/v1/scoring-criteria/generate` | 根据已有 JD 调用 Dify type=2 生成，**不落库** | 是 |
+| `POST` | `/api/v1/scoring-criteria/generate/stream` | 流式生成评分标准（SSE），**不落库** | 是 |
+
+生成请求体：
+
+```json
+{
+  "job_description_id": "JD 的 UUID",
+  "title": "可选标题，省略时使用「JD 标题 - 简历评分标准」",
+  "total_score": "100",
+  "instructions": "可选的额外生成要求"
+}
+```
+
+后端会加载 JD 并把职位名称、部门、地点、经验 / 学历要求、技能、正文与职位要求
+拼成 `query`，调用 Dify Chatflow type=2；返回 `title` / `job_title` / `content` /
+`total_score` / `job_description_id` / `conversation_id` / `workflow_type` 等字段。
+生成结果不自动落库，前端编辑后调用创建接口保存。JD 不存在时返回 `404`，Dify
+错误沿用 [错误码](#错误码) 中的 `DIFY_*`。
+
+`/generate/stream` 与阻塞接口入参相同，把 Dify SSE 归一化为：
+
+| 事件 | data | 说明 |
+| --- | --- | --- |
+| `start` | `{"workflow_type":"scoring_criteria_generation"}` | 流已建立 |
+| `delta` | `{"content":"..."}` | 增量文本 |
+| `done` | `GenerateScoringCriteriaResponse` | 完整评分标准与生成信息 |
+| `error` | `{"status","code","message"}` | 流式阶段的 Dify / 超时错误 |
+
+前端用 `fetch` + `ReadableStream` 边收边渲染，收到 `done` 后再调用创建接口保存。
+
+字段与 `app/schemas/scoring_criteria.py` 对齐：`title` / `content` 必填，
+`job_title`、`criteria_data`、`total_score`、`scoring_dimensions`、`status`、
+`meta_data`、`conversation_id`、`workflow_type`、`job_description_id` 可选。
+`status` 取值为 `draft` / `generated` / `published` / `archived`，默认 `draft`。
 
 ## Dify Chatflow 接入
 

@@ -40,6 +40,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/JdView.vue'),
         meta: { title: 'JD 管理', requiresAuth: true },
       },
+      {
+        path: 'scoring-criteria',
+        // 旧的独立页面入口保留兼容，统一回到 JD 管理页的评分标准标签
+        redirect: { name: 'jds' },
+      },
     ],
   },
   {

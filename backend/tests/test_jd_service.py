@@ -250,6 +250,14 @@ def test_to_list_item_removes_leading_title() -> None:
     assert item.content_preview.startswith("岗位职责")
 
 
+def test_to_list_item_includes_criteria_count() -> None:
+    record = make_jd_record()
+
+    item = jd_service.to_list_item(record, 2)
+
+    assert item.criteria_count == 2
+
+
 def _parse_sse_frames(chunks: list[bytes]) -> list[tuple[str, dict[str, Any]]]:
     frames: list[tuple[str, dict[str, Any]]] = []
     for raw in b"".join(chunks).decode().split("\n\n"):
