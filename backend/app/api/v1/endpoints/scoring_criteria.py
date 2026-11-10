@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, DifyClient
+from app.api.v1.responses import sse_response
 from app.db.session import get_db
 from app.schemas.error import ErrorResponse
 from app.schemas.scoring_criteria import (
@@ -129,20 +130,13 @@ async def stream_generate_scoring_criteria(
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """流式生成简历评分标准；JD 校验失败会在建立流之前返回统一 JSON 错误。"""
-    events = await scoring_criteria_service.stream_generate_scoring_criteria(
-        db,
-        payload,
-        user_id=current_user.id,
-        client=client,
-    )
-    return StreamingResponse(
-        events,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+    return sse_response(
+        await scoring_criteria_service.stream_generate_scoring_criteria(
+            db,
+            payload,
+            user_id=current_user.id,
+            client=client,
+        )
     )
 
 

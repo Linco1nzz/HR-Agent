@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -16,15 +16,10 @@ import httpx
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (
-    AppException,
-    DifyInvalidResponseError,
-    NotFoundError,
-    WorkflowValidationError,
-)
+from app.core.exceptions import DifyInvalidResponseError, NotFoundError, WorkflowValidationError
 from app.core.logging import get_logger
 from app.db.models import JobDescription, ScoringCriteria
-from app.schemas.ai import ChatRequest, ChatUsage, WorkflowType
+from app.schemas.ai import ChatRequest, WorkflowType
 from app.schemas.scoring_criteria import (
     WORKFLOW_TYPE,
     GenerateScoringCriteriaRequest,
@@ -35,6 +30,7 @@ from app.schemas.scoring_criteria import (
     ScoringCriteriaUpdate,
 )
 from app.services import dify_service, jd_service
+from app.services.streaming import ChatflowResult, stream_chatflow
 
 logger = get_logger(__name__)
 
@@ -271,21 +267,19 @@ async def generate_scoring_criteria(
     return _build_generation_result(
         jd,
         payload,
-        content=content,
-        conversation_id=response.conversation_id,
-        task_id=response.task_id,
-        usage=response.usage,
+        ChatflowResult(
+            content=content,
+            conversation_id=response.conversation_id,
+            task_id=response.task_id,
+            usage=response.usage,
+        ),
     )
 
 
 def _build_generation_result(
     jd: JobDescription,
     payload: GenerateScoringCriteriaRequest,
-    *,
-    content: str,
-    conversation_id: str,
-    task_id: str,
-    usage: ChatUsage | None,
+    result: ChatflowResult,
 ) -> GenerateScoringCriteriaResponse:
     """组装阻塞 / 流式共用的生成结果。"""
     title = payload.title or f"{jd.title} - 简历评分标准"
@@ -294,19 +288,14 @@ def _build_generation_result(
     return GenerateScoringCriteriaResponse(
         title=title,
         job_title=jd.title,
-        content=content,
+        content=result.content,
         total_score=payload.total_score,
         job_description_id=jd.id,
-        conversation_id=conversation_id,
+        conversation_id=result.conversation_id,
         workflow_type=WORKFLOW_TYPE,
-        task_id=task_id,
-        usage=usage,
+        task_id=result.task_id,
+        usage=result.usage,
     )
-
-
-def _sse(event: str, data: dict[str, Any]) -> bytes:
-    """编码一个标准 SSE 帧（event + 单行 JSON data）。"""
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode()
 
 
 async def stream_generate_scoring_criteria(
@@ -316,14 +305,7 @@ async def stream_generate_scoring_criteria(
     user_id: UUID | str,
     client: httpx.AsyncClient | None = None,
 ) -> AsyncIterator[bytes]:
-    """真实流式生成简历评分标准。
-
-    先加载 JD 并组装 type=2 请求，再把 Dify SSE 归一化为：
-
-    - ``start``：流已建立；
-    - ``delta``：增量文本 ``{"content": "..."}``；
-    - ``done``：完整结果，字段同 ``GenerateScoringCriteriaResponse``；
-    - ``error``：``{"status", "code", "message"}``。
+    """真实流式生成简历评分标准（归一化为 start / delta / done / error 事件）。
 
     JD 不存在、Dify 未配置等前置错误在返回生成器前抛出；进入流式响应后，
     Dify 的 4xx/5xx、超时与断连都转为 ``error`` 事件。
@@ -335,121 +317,13 @@ async def stream_generate_scoring_criteria(
         instructions=payload.instructions,
     )
     http = client or dify_service.get_client()
-    return _stream_scoring_criteria_events(http, request, jd, payload, user_id)
-
-
-async def _stream_scoring_criteria_events(
-    http: httpx.AsyncClient,
-    request: ChatRequest,
-    jd: JobDescription,
-    payload: GenerateScoringCriteriaRequest,
-    user_id: UUID | str,
-) -> AsyncIterator[bytes]:
-    fragments: list[str] = []
-    conversation_id = ""
-    task_id = ""
-    usage: ChatUsage | None = None
-    fallback_content = ""
-
-    yield _sse("start", {"workflow_type": WORKFLOW_TYPE})
-
-    try:
-        async for event in dify_service.iter_stream_events(
-            request,
-            user_id=user_id,
-            client=http,
-        ):
-            kind = event.get("event")
-            if isinstance(event.get("conversation_id"), str):
-                conversation_id = event["conversation_id"]
-            if isinstance(event.get("task_id"), str):
-                task_id = event["task_id"]
-
-            if kind == "message":
-                delta = event.get("answer")
-                if isinstance(delta, str) and delta:
-                    fragments.append(delta)
-                    yield _sse("delta", {"content": delta})
-            elif kind == "message_end":
-                metadata = event.get("metadata")
-                if isinstance(metadata, dict):
-                    raw_usage = metadata.get("usage")
-                    if isinstance(raw_usage, dict):
-                        usage = ChatUsage.model_validate(raw_usage)
-            elif kind == "workflow_finished":
-                data = event.get("data")
-                if isinstance(data, dict):
-                    outputs = data.get("outputs")
-                    if isinstance(outputs, dict) and isinstance(outputs.get("answer"), str):
-                        fallback_content = outputs["answer"]
-            elif kind == "error":
-                yield _sse(
-                    "error",
-                    {
-                        "status": event.get("status", 502),
-                        "code": event.get("code", "DIFY_WORKFLOW_FAILED"),
-                        "message": event.get("message", "Dify 工作流执行失败"),
-                    },
-                )
-                return
-    except AppException as exc:
-        logger.warning(
-            "scoring_criteria_stream_failed",
-            code=exc.code.value,
-            status_code=exc.status_code,
-            user_id=str(user_id),
-            job_description_id=str(jd.id),
-        )
-        yield _sse(
-            "error",
-            {
-                "status": exc.status_code,
-                "code": exc.code.value,
-                "message": exc.message,
-            },
-        )
-        return
-    except Exception:
-        logger.exception(
-            "scoring_criteria_stream_unexpected_error",
-            user_id=str(user_id),
-            job_description_id=str(jd.id),
-        )
-        yield _sse(
-            "error",
-            {
-                "status": 500,
-                "code": "INTERNAL_ERROR",
-                "message": "评分标准生成失败，请稍后重试",
-            },
-        )
-        return
-
-    content = "".join(fragments).strip() or fallback_content.strip()
-    if not content:
-        yield _sse(
-            "error",
-            {
-                "status": 502,
-                "code": "DIFY_INVALID_RESPONSE",
-                "message": "Dify 未返回简历评分标准内容",
-            },
-        )
-        return
-
-    result = _build_generation_result(
-        jd,
-        payload,
-        content=content,
-        conversation_id=conversation_id,
-        task_id=task_id,
-        usage=usage,
+    return stream_chatflow(
+        request,
+        user_id=user_id,
+        client=http,
+        workflow_type=WORKFLOW_TYPE,
+        build_result=partial(_build_generation_result, jd, payload),
+        empty_message="Dify 未返回简历评分标准内容",
+        failure_message="评分标准生成失败，请稍后重试",
+        log_context={"job_description_id": str(jd.id)},
     )
-    logger.info(
-        "scoring_criteria_stream_finished",
-        user_id=str(user_id),
-        job_description_id=str(jd.id),
-        content_chars=len(content),
-        conversation_id=conversation_id,
-    )
-    yield _sse("done", result.model_dump(mode="json"))

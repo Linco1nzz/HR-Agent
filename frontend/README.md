@@ -121,6 +121,9 @@ AI 生成通过后端 Dify Chatflow type=1 完成：后端把 Dify SSE 归一化
 `start` / `delta` / `done` / `error`，前端用 `fetch` + `ReadableStream` 边收边渲染；
 Markdown 正文由 `marked` 渲染并经 `DOMPurify` 清洗。
 
+流式生成统一走 `src/api/stream.ts` 的 `streamGeneration`，它负责鉴权、非 2xx
+错误响应与 SSE 帧分发；新增功能只需传入接口路径、请求体与结果类型。
+
 简历评分标准已整合进 JD 管理页（`/jds`）：选中一个 JD 后，在右侧切换到「简历评分
 标准」标签，即可看到该 JD 已有的评分标准卡片、生成新标准并进入编辑。生成时正文会
 实时流式出现，可随时停止；左侧 JD 列表会显示已关联的评分标准数量，方便快速识别哪些

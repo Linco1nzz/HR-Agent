@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, DifyClient
+from app.api.v1.responses import sse_response
 from app.db.session import get_db
 from app.schemas.error import ErrorResponse
 from app.schemas.jd import (
@@ -123,19 +124,12 @@ async def stream_generate_jd(
     client: DifyClient,
 ) -> StreamingResponse:
     """流式生成 JD；校验失败会在建立流之前返回统一 JSON 错误。"""
-    events = jd_service.stream_generate_jd(
-        payload,
-        user_id=current_user.id,
-        client=client,
-    )
-    return StreamingResponse(
-        events,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+    return sse_response(
+        jd_service.stream_generate_jd(
+            payload,
+            user_id=current_user.id,
+            client=client,
+        )
     )
 
 

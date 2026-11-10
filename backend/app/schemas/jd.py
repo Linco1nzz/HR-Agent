@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.ai import ChatUsage
 
+WORKFLOW_TYPE = "jd_generation"
+
 
 class JDStatus(StrEnum):
     """JD 状态。"""
@@ -38,7 +40,7 @@ class JDBase(BaseModel):
     meta_data: dict[str, Any] | None = Field(default=None, description="附加元数据")
     conversation_id: str | None = Field(default=None, max_length=64, description="会话 ID")
     workflow_type: str = Field(
-        default="jd_generation",
+        default=WORKFLOW_TYPE,
         max_length=50,
         description="工作流类型",
     )
@@ -207,6 +209,6 @@ class GenerateJDResponse(BaseModel):
 
     content: str = Field(description="生成的 JD 正文（Markdown）")
     conversation_id: str = Field(default="", description="Dify 会话 ID")
-    workflow_type: str = Field(default="jd_generation", description="工作流类型")
+    workflow_type: str = Field(default=WORKFLOW_TYPE, description="工作流类型")
     task_id: str = Field(default="", description="Dify 任务 ID")
     usage: ChatUsage | None = Field(default=None, description="token / 计费信息")

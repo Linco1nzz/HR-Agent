@@ -6,26 +6,20 @@ AI 生成复用 :mod:`app.services.dify_service` 的 Chatflow type=1 分支；�
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import AsyncIterator
-from typing import Any
 from uuid import UUID
 
 import httpx
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (
-    AppException,
-    DifyInvalidResponseError,
-    NotFoundError,
-    WorkflowValidationError,
-)
+from app.core.exceptions import DifyInvalidResponseError, NotFoundError, WorkflowValidationError
 from app.core.logging import get_logger
 from app.db.models import JobDescription, ScoringCriteria
-from app.schemas.ai import ChatRequest, ChatUsage, WorkflowType
+from app.schemas.ai import ChatRequest, WorkflowType
 from app.schemas.jd import (
+    WORKFLOW_TYPE,
     GenerateJDRequest,
     GenerateJDResponse,
     JDStatus,
@@ -34,6 +28,7 @@ from app.schemas.jd import (
     JobDescriptionUpdate,
 )
 from app.services import dify_service
+from app.services.streaming import ChatflowResult, stream_chatflow
 
 logger = get_logger(__name__)
 
@@ -262,15 +257,21 @@ async def generate_jd(
     return GenerateJDResponse(
         content=content,
         conversation_id=response.conversation_id,
-        workflow_type="jd_generation",
+        workflow_type=WORKFLOW_TYPE,
         task_id=response.task_id,
         usage=response.usage,
     )
 
 
-def _sse(event: str, data: dict[str, Any]) -> bytes:
-    """编码一个标准 SSE 帧（event + 单行 JSON data）。"""
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode()
+def _build_stream_result(result: ChatflowResult) -> GenerateJDResponse:
+    """把流式累积结果组装为 ``done`` 事件。"""
+    return GenerateJDResponse(
+        content=result.content,
+        conversation_id=result.conversation_id,
+        workflow_type=WORKFLOW_TYPE,
+        task_id=result.task_id,
+        usage=result.usage,
+    )
 
 
 def stream_generate_jd(
@@ -279,126 +280,18 @@ def stream_generate_jd(
     user_id: UUID | str,
     client: httpx.AsyncClient | None = None,
 ) -> AsyncIterator[bytes]:
-    """真实流式生成 JD。
-
-    返回归一化事件，不把 Dify 的 ``workflow_*`` / ``ping`` 原样暴露给前端：
-
-    - ``start``：流已建立；
-    - ``delta``：增量文本 ``{"content": "..."}``；
-    - ``done``：完整结果，字段同 ``GenerateJDResponse``；
-    - ``error``：``{"status", "code", "message"}``。
+    """真实流式生成 JD（归一化为 start / delta / done / error 事件）。
 
     校验、客户端创建等前置错误在返回生成器前抛出；进入流式响应后，Dify 的
     4xx/5xx、超时与断连都转为 ``error`` 事件。
     """
-    request = _build_chat_request(payload)
     http = client or dify_service.get_client()
-    return _stream_generate_jd_events(http, request, user_id)
-
-
-async def _stream_generate_jd_events(
-    http: httpx.AsyncClient,
-    request: ChatRequest,
-    user_id: UUID | str,
-) -> AsyncIterator[bytes]:
-    fragments: list[str] = []
-    conversation_id = ""
-    task_id = ""
-    usage: ChatUsage | None = None
-    fallback_content = ""
-
-    yield _sse("start", {"workflow_type": "jd_generation"})
-
-    try:
-        async for event in dify_service.iter_stream_events(
-            request,
-            user_id=user_id,
-            client=http,
-        ):
-            kind = event.get("event")
-            if isinstance(event.get("conversation_id"), str):
-                conversation_id = event["conversation_id"]
-            if isinstance(event.get("task_id"), str):
-                task_id = event["task_id"]
-
-            if kind == "message":
-                delta = event.get("answer")
-                if isinstance(delta, str) and delta:
-                    fragments.append(delta)
-                    yield _sse("delta", {"content": delta})
-            elif kind == "message_end":
-                metadata = event.get("metadata")
-                if isinstance(metadata, dict):
-                    raw_usage = metadata.get("usage")
-                    if isinstance(raw_usage, dict):
-                        usage = ChatUsage.model_validate(raw_usage)
-            elif kind == "workflow_finished":
-                data = event.get("data")
-                if isinstance(data, dict):
-                    outputs = data.get("outputs")
-                    if isinstance(outputs, dict) and isinstance(outputs.get("answer"), str):
-                        fallback_content = outputs["answer"]
-            elif kind == "error":
-                yield _sse(
-                    "error",
-                    {
-                        "status": event.get("status", 502),
-                        "code": event.get("code", "DIFY_WORKFLOW_FAILED"),
-                        "message": event.get("message", "Dify 工作流执行失败"),
-                    },
-                )
-                return
-    except AppException as exc:
-        logger.warning(
-            "jd_stream_failed",
-            code=exc.code.value,
-            status_code=exc.status_code,
-            user_id=str(user_id),
-        )
-        yield _sse(
-            "error",
-            {
-                "status": exc.status_code,
-                "code": exc.code.value,
-                "message": exc.message,
-            },
-        )
-        return
-    except Exception:
-        logger.exception("jd_stream_unexpected_error", user_id=str(user_id))
-        yield _sse(
-            "error",
-            {
-                "status": 500,
-                "code": "INTERNAL_ERROR",
-                "message": "JD 生成失败，请稍后重试",
-            },
-        )
-        return
-
-    content = "".join(fragments).strip() or fallback_content.strip()
-    if not content:
-        yield _sse(
-            "error",
-            {
-                "status": 502,
-                "code": "DIFY_INVALID_RESPONSE",
-                "message": "Dify 未返回 JD 内容",
-            },
-        )
-        return
-
-    result = GenerateJDResponse(
-        content=content,
-        conversation_id=conversation_id,
-        workflow_type="jd_generation",
-        task_id=task_id,
-        usage=usage,
+    return stream_chatflow(
+        _build_chat_request(payload),
+        user_id=user_id,
+        client=http,
+        workflow_type=WORKFLOW_TYPE,
+        build_result=_build_stream_result,
+        empty_message="Dify 未返回 JD 内容",
+        failure_message="JD 生成失败，请稍后重试",
     )
-    logger.info(
-        "jd_stream_finished",
-        user_id=str(user_id),
-        content_chars=len(content),
-        conversation_id=conversation_id,
-    )
-    yield _sse("done", result.model_dump(mode="json"))

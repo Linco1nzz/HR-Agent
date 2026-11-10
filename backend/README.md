@@ -450,6 +450,11 @@ curl -N -X POST http://127.0.0.1:18080/api/v1/ai/chat/stream \
 data: {"event":"error","status":503,"code":"DIFY_UNAVAILABLE","message":"..."}
 ```
 
+JD、简历评分标准等需要把增量文本重组为完整业务对象的接口，统一由
+`app/services/streaming.py` 的 `stream_chatflow` 编排 `start` / `delta` /
+`done` / `error`，接口层用 `app/api/v1/responses.py` 的 `sse_response` 返回。
+新增生成流程只需提供 `ChatRequest`、`done` 事件的响应组装函数和错误文案。
+
 ### 错误码
 
 | HTTP | 错误码 | 说明 |
