@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     dify_timeout_seconds: float = 120.0
     dify_connect_timeout_seconds: float = 5.0
 
+    # --- 简历文件上传 ---
+    #: 简历附件保存目录；相对路径按 backend/ 解析
+    resume_upload_dir: str = str(BACKEND_DIR / "uploads" / "resumes")
+    #: 单份简历允许的最大体积（MB）
+    resume_max_file_size_mb: int = 10
+
     # --- CORS（逗号分隔的前端地址）---
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

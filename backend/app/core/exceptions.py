@@ -239,3 +239,35 @@ class WorkflowValidationError(UnprocessableEntityError):
 
     code = ErrorCode.WORKFLOW_VALIDATION_ERROR
     default_message = "工作流输入不完整"
+
+
+# ---------------------------------------------------------------------------
+# 简历筛选
+# ---------------------------------------------------------------------------
+class UnsupportedResumeFormatError(UnprocessableEntityError):
+    """422：上传的简历文件格式不在支持范围内。"""
+
+    code = ErrorCode.UNSUPPORTED_RESUME_FORMAT
+    default_message = "不支持的简历文件格式"
+
+
+class ResumeTooLargeError(AppException):
+    """413：简历文件超过大小限制。"""
+
+    status_code = 413
+    code = ErrorCode.RESUME_FILE_TOO_LARGE
+    default_message = "简历文件超过大小限制"
+
+
+class ResumeParseError(UnprocessableEntityError):
+    """422：简历文件无法解析出有效文本。"""
+
+    code = ErrorCode.RESUME_PARSE_FAILED
+    default_message = "简历文件解析失败"
+
+
+class ScoringCriteriaRequiredError(UnprocessableEntityError):
+    """422：目标 JD 还没有可用的评分标准，无法评分。"""
+
+    code = ErrorCode.SCORING_CRITERIA_REQUIRED
+    default_message = "该 JD 还没有评分标准，请先生成评分标准后再筛选简历"

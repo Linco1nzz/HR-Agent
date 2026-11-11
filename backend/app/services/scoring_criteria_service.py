@@ -87,6 +87,20 @@ async def get_scoring_criteria(db: AsyncSession, criteria_id: UUID) -> ScoringCr
     return record
 
 
+async def get_latest_for_jd(db: AsyncSession, jd_id: UUID) -> ScoringCriteria | None:
+    """获取 JD 下最近更新的启用中评分标准；没有时返回 None。"""
+    stmt = (
+        select(ScoringCriteria)
+        .where(
+            ScoringCriteria.job_description_id == jd_id,
+            ScoringCriteria.is_active.is_(True),
+        )
+        .order_by(ScoringCriteria.updated_at.desc())
+        .limit(1)
+    )
+    return await db.scalar(stmt)
+
+
 # ---------------------------------------------------------------------------
 # 创建 / 更新
 # ---------------------------------------------------------------------------

@@ -211,3 +211,56 @@ export interface GenerateScoringCriteriaResponse {
   task_id: string
   usage: Record<string, unknown> | null
 }
+
+/** 简历复核状态（app/schemas/resume_evaluation.py）。 */
+export type ResumeStatus = 'pending' | 'interview' | 'rejected'
+
+export interface EvaluationMetric {
+  name: string
+  score: number
+  max: number
+  reason: string
+}
+
+export interface ResumeEvaluationListItem {
+  id: string
+  original_filename: string
+  file_type: string
+  file_size: number
+  candidate_name: string | null
+  candidate_position: string | null
+  work_years: number | null
+  education_level: string | null
+  total_score: number | null
+  max_score: number | null
+  metric_count: number
+  status: ResumeStatus
+  job_title: string | null
+  job_description_id: string
+  scoring_criteria_id: string
+  scoring_criteria_title: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ResumeEvaluation extends ResumeEvaluationListItem {
+  candidate_age: number | null
+  candidate_gender: string | null
+  school: string | null
+  resume_content: string
+  evaluation_metrics: EvaluationMetric[]
+  ai_answer: string | null
+  conversation_id: string | null
+  created_by: string | null
+}
+
+export interface ResumeEvaluationListResponse {
+  items: ResumeEvaluationListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ResumeEvaluationStatusPayload {
+  status: ResumeStatus
+}

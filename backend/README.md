@@ -381,6 +381,41 @@ uv run alembic upgrade head
 `meta_data`、`conversation_id`、`workflow_type`、`job_description_id` 可选。
 `status` 取值为 `draft` / `generated` / `published` / `archived`，默认 `draft`。
 
+## 简历筛选
+
+简历评分记录保存于 `resume_evaluation` 表：一次上传对应一条记录，保存文件信息、
+解析后的简历正文、AI 提取的候选人信息、评分维度与总分。`job_description_id` /
+`scoring_criteria_id` 按项目约定不建数据库外键，上传时由业务层校验。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/resume-evaluations` | 分页列表，支持 `keyword` / `status` / `job_description_id` | 是 |
+| `POST` | `/api/v1/resume-evaluations/upload` | 上传简历并按 JD 评分标准评分 | 是 |
+| `GET` | `/api/v1/resume-evaluations/{id}` | 详情（候选人信息、简历正文、总分与维度） | 是 |
+| `PATCH` | `/api/v1/resume-evaluations/{id}/status` | 人工更新复核状态 | 是 |
+
+上传使用 `multipart/form-data`：
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/v1/resume-evaluations/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@resume.pdf" \
+  -F "job_description_id=<JD UUID>"
+```
+
+- 支持 PDF / DOC / DOCX / TXT，默认单文件不超过 10MB；分别由
+  `RESUME_UPLOAD_DIR`、`RESUME_MAX_FILE_SIZE_MB` 配置。
+- 评分必须指定 JD，且该 JD 至少有一份启用中的评分标准；后端取最近更新的一份。
+  没有评分标准时返回 `422 SCORING_CRITERIA_REQUIRED`，不会调用 AI。
+- 调用 Dify Chatflow type=3：`query` 为评分标准正文，`inputs.jianli` 为解析后的
+  简历文本，`inputs.jobName` 为 JD 标题。
+- 评分完成即保存记录，默认状态 `pending`（待复核）；HR 可改为 `interview`
+  （进入面试）或 `rejected`（已淘汰）。AI 评分只作为初筛参考。
+- 文件格式 / 大小 / 解析错误分别返回 `UNSUPPORTED_RESUME_FORMAT` /
+  `RESUME_FILE_TOO_LARGE` / `RESUME_PARSE_FAILED`。
+- 旧版 DOC 解析依赖系统工具：优先 antiword、catdoc、LibreOffice，Windows 上
+  还会尝试本机 Word COM；都没有时会提示另存为 DOCX。
+
 ## Dify Chatflow 接入
 
 HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
@@ -473,7 +508,7 @@ JD、简历评分标准等需要把增量文本重组为完整业务对象的接
   `Structured output validation failed`：当前 Dify 的 `LLM 3` 节点启用了结构化输出，
   但 schema 是空对象（`additionalProperties: false`），模型输出必然校验失败。
   在 Dify 工作流中关闭该节点的“结构化输出”，或补全与实际 JSON 输出匹配的 schema
-  后重新发布即可；后端已正确透传 Dify 的错误信息。
+  后重新发布即可；后端会把该错误转换为“关闭 LLM 3 结构化输出”的可操作提示。
 
 ### 本地 Dify 地址说明
 
@@ -500,6 +535,8 @@ JD、简历评分标准等需要把增量文本重组为完整业务对象的接
 | `DIFY_BASE_URL` | `http://127.0.0.1/v1` | Dify API 地址，必须包含 `/v1` |
 | `DIFY_API_KEY` | 空 | Dify 应用「API 访问」密钥（`app-` 开头） |
 | `DIFY_TIMEOUT_SECONDS` / `DIFY_CONNECT_TIMEOUT_SECONDS` | `120` / `5` | 工作流读取超时 / 连接超时（秒） |
+| `RESUME_UPLOAD_DIR` | `backend/uploads/resumes` | 简历附件保存目录 |
+| `RESUME_MAX_FILE_SIZE_MB` | `10` | 单份简历最大体积（MB） |
 | `CORS_ORIGINS` | 本地前端 5173 | 逗号分隔的允许来源 |
 
 ## 依赖源说明

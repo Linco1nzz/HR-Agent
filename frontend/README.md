@@ -63,7 +63,7 @@ frontend/
 │   ├── stores/              # Pinia：会话与用户信息
 │   ├── styles/              # 全局样式与 Element Plus 主题变量
 │   ├── utils/               # localStorage 令牌读写、SSE 帧解析
-│   ├── views/               # 登录、工作台、JD 管理（含简历评分标准）、404
+│   ├── views/               # 登录、工作台、JD 管理（含评分标准）、简历筛选、404
 │   ├── App.vue              # ElConfigProvider + router-view
 │   └── main.ts              # 应用入口
 ├── public/favicon.svg
@@ -115,6 +115,10 @@ frontend/
 | `PATCH` | `/api/v1/scoring-criteria/{id}`            | 编辑评分标准                       |
 | `POST`  | `/api/v1/scoring-criteria/generate`        | 根据已有 JD 生成评分标准（不落库） |
 | `POST`  | `/api/v1/scoring-criteria/generate/stream` | 流式生成评分标准（SSE，不落库）    |
+| `GET`   | `/api/v1/resume-evaluations`               | 简历筛选记录分页列表               |
+| `POST`  | `/api/v1/resume-evaluations/upload`        | 上传简历并完成 AI 评分             |
+| `GET`   | `/api/v1/resume-evaluations/{id}`          | 简历详情与评分结果                 |
+| `PATCH` | `/api/v1/resume-evaluations/{id}/status`   | 人工更新复核状态                   |
 
 JD 管理页（`/jds`）支持列表 / 详情、状态筛选、新建、AI 流式生成与在线编辑。
 AI 生成通过后端 Dify Chatflow type=1 完成：后端把 Dify SSE 归一化为
@@ -129,6 +133,11 @@ Markdown 正文由 `marked` 渲染并经 `DOMPurify` 清洗。
 实时流式出现，可随时停止；左侧 JD 列表会显示已关联的评分标准数量，方便快速识别哪些
 岗位已经配置。生成结果不自动落库，用户确认后再保存。旧的 `/scoring-criteria` 地址
 会重定向回 `/jds`。
+
+简历筛选页（`/resumes`）支持上传 PDF / DOC / DOCX / TXT 简历，选择已有评分标准的
+JD 后等待 AI 评分；左侧列表展示候选人、总分与复核状态，右侧可查看候选人信息、各维度
+评分理由、完整简历正文，并可把状态更新为待复核 / 进入面试 / 已淘汰。页面不会展示
+没有评分标准的 JD，后端也会再次校验，避免绕过前端直接评分。
 
 工作台中的统计指标与图表为演示数据，后续业务接口接入时替换 `DashboardView.vue` 中的数据源即可。
 

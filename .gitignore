@@ -30,3 +30,5 @@ Thumbs.db
 *.log
 logs/
 docker/volumes/
+uploads/
+backend/uploads/

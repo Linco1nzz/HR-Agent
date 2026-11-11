@@ -19,7 +19,15 @@
 """
 
 from app.db.models.job_description import JobDescription
+from app.db.models.resume_evaluation import ResumeEvaluation
 from app.db.models.scoring_criteria import ScoringCriteria
 from app.db.models.user import Role, User, UserRoleAssociation
 
-__all__ = ["JobDescription", "Role", "ScoringCriteria", "User", "UserRoleAssociation"]
+__all__ = [
+    "JobDescription",
+    "ResumeEvaluation",
+    "Role",
+    "ScoringCriteria",
+    "User",
+    "UserRoleAssociation",
+]
