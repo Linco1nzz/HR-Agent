@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  ChatDotRound,
   DataAnalysis,
   Document,
   Refresh,
@@ -24,10 +25,11 @@ import type {
   ResumeStatus,
 } from '@/api/types'
 import JdMarkdown from '@/components/JdMarkdown.vue'
+import InterviewPlanPanel from '@/components/InterviewPlanPanel.vue'
 import ResumeUploadDialog from '@/components/ResumeUploadDialog.vue'
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
-type DetailTab = 'result' | 'resume'
+type DetailTab = 'result' | 'resume' | 'interview'
 
 const statusMeta: Record<ResumeStatus, { label: string; type: TagType }> = {
   pending: { label: '待复核', type: 'info' },
@@ -268,7 +270,7 @@ onMounted(() => {
         <p class="resume-header__eyebrow">人才招聘</p>
         <h1>简历筛选</h1>
         <p class="resume-header__desc">
-          上传候选人简历，按 JD 已有的评分标准自动打分，并保留完整简历与评分理由。
+          上传候选人简历，按 JD 已有的评分标准自动打分，并生成可编辑、可导出的面试方案。
         </p>
       </div>
       <el-button type="primary" :icon="Upload" size="large" @click="openUpload">
@@ -495,6 +497,17 @@ onMounted(() => {
               <el-icon><Document /></el-icon>
               简历内容
             </button>
+            <button
+              type="button"
+              class="resume-tab"
+              :class="{ 'is-active': detailTab === 'interview' }"
+              role="tab"
+              :aria-selected="detailTab === 'interview'"
+              @click="detailTab = 'interview'"
+            >
+              <el-icon><ChatDotRound /></el-icon>
+              面试方案
+            </button>
           </div>
 
           <section v-if="detailTab === 'result'" class="resume-tab-panel" role="tabpanel">
@@ -541,7 +554,7 @@ onMounted(() => {
             </footer>
           </section>
 
-          <section v-else class="resume-tab-panel" role="tabpanel">
+          <section v-else-if="detailTab === 'resume'" class="resume-tab-panel" role="tabpanel">
             <div class="resume-content-head">
               <h3>简历正文</h3>
               <span
@@ -549,6 +562,10 @@ onMounted(() => {
               >
             </div>
             <pre class="resume-content">{{ selected.resume_content }}</pre>
+          </section>
+
+          <section v-else class="resume-tab-panel" role="tabpanel">
+            <InterviewPlanPanel :resume="selected" />
           </section>
         </article>
 

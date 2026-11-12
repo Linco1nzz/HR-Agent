@@ -264,3 +264,73 @@ export interface ResumeEvaluationListResponse {
 export interface ResumeEvaluationStatusPayload {
   status: ResumeStatus
 }
+
+/** 面试方案（app/schemas/interview_plan.py）。 */
+export interface InterviewPlanListItem {
+  id: string
+  candidate_name: string
+  candidate_position: string
+  resume_evaluation_id: string
+  job_title: string | null
+  content_preview: string
+  created_at: string
+  updated_at: string
+}
+
+export interface InterviewPlan {
+  id: string
+  candidate_name: string
+  candidate_position: string
+  content: string
+  resume_evaluation_id: string
+  job_title: string | null
+  job_description_id: string | null
+  conversation_id: string | null
+  workflow_type: string
+  meta_data: Record<string, unknown> | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InterviewPlanListResponse {
+  items: InterviewPlanListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface InterviewPlanPayload {
+  candidate_name: string
+  candidate_position: string
+  content: string
+  resume_evaluation_id: string
+  conversation_id?: string | null
+  meta_data?: Record<string, unknown> | null
+}
+
+export interface InterviewPlanUpdatePayload {
+  candidate_name?: string
+  candidate_position?: string
+  content?: string
+}
+
+export interface GenerateInterviewPlanPayload {
+  resume_evaluation_id: string
+  instructions?: string | null
+}
+
+export interface GenerateInterviewPlanResponse {
+  content: string
+  candidate_name: string
+  candidate_position: string
+  resume_evaluation_id: string
+  job_title: string | null
+  job_description_id: string | null
+  conversation_id: string
+  workflow_type: string
+  task_id: string
+  usage: Record<string, unknown> | null
+}
+
+export type InterviewPlanExportFormat = 'docx' | 'markdown'

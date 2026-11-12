@@ -55,15 +55,15 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:18080`，因此浏览器侧没有
 ```
 frontend/
 ├── src/
-│   ├── api/                 # Axios 实例、认证 / JD / 评分标准接口、后端 Schema 类型
-│   ├── components/          # BaseChart、JdMarkdown、JD / 评分标准编辑器
+│   ├── api/                 # Axios 实例、认证 / JD / 评分标准 / 简历 / 面试方案接口与类型
+│   ├── components/          # BaseChart、JdMarkdown、JD / 评分标准编辑器、简历上传、面试方案面板
 │   ├── layouts/             # 工作台布局（侧边栏 / 顶栏 / 内容区）
 │   ├── plugins/             # echarts 按需注册
 │   ├── router/              # 路由表、登录守卫、401 统一跳转
 │   ├── stores/              # Pinia：会话与用户信息
 │   ├── styles/              # 全局样式与 Element Plus 主题变量
 │   ├── utils/               # localStorage 令牌读写、SSE 帧解析
-│   ├── views/               # 登录、工作台、JD 管理（含评分标准）、简历筛选、404
+│   ├── views/               # 登录、工作台、JD 管理（含评分标准）、简历筛选（含面试方案）、404
 │   ├── App.vue              # ElConfigProvider + router-view
 │   └── main.ts              # 应用入口
 ├── public/favicon.svg
@@ -119,6 +119,12 @@ frontend/
 | `POST`  | `/api/v1/resume-evaluations/upload`        | 上传简历并完成 AI 评分             |
 | `GET`   | `/api/v1/resume-evaluations/{id}`          | 简历详情与评分结果                 |
 | `PATCH` | `/api/v1/resume-evaluations/{id}/status`   | 人工更新复核状态                   |
+| `GET`   | `/api/v1/interview-plans`                  | 面试方案分页列表                   |
+| `POST`  | `/api/v1/interview-plans/generate/stream`  | 流式生成面试方案（SSE，不落库）    |
+| `POST`  | `/api/v1/interview-plans`                  | 保存面试方案                       |
+| `GET`   | `/api/v1/interview-plans/{id}`             | 面试方案详情                       |
+| `PATCH` | `/api/v1/interview-plans/{id}`             | 编辑面试方案                       |
+| `GET`   | `/api/v1/interview-plans/{id}/export`      | 导出 Word / Markdown               |
 
 JD 管理页（`/jds`）支持列表 / 详情、状态筛选、新建、AI 流式生成与在线编辑。
 AI 生成通过后端 Dify Chatflow type=1 完成：后端把 Dify SSE 归一化为
@@ -138,6 +144,11 @@ Markdown 正文由 `marked` 渲染并经 `DOMPurify` 清洗。
 JD 后等待 AI 评分；左侧列表展示候选人、总分与复核状态，右侧可查看候选人信息、各维度
 评分理由、完整简历正文，并可把状态更新为待复核 / 进入面试 / 已淘汰。页面不会展示
 没有评分标准的 JD，后端也会再次校验，避免绕过前端直接评分。
+
+同一详情页的「面试方案」标签用于根据该候选人的简历与 JD 流式生成面试方案。生成时
+内容实时出现，可停止、重新生成，确认后保存；已保存方案可切换查看、在线编辑，并导出
+Word（`.docx`）或 Markdown（`.md`）。未保存的修改会在切换方案时提示，导出前也要求
+先保存，避免导出旧版本。该功能没有独立路由，跟随所选简历，减少来回跳转。
 
 工作台中的统计指标与图表为演示数据，后续业务接口接入时替换 `DashboardView.vue` 中的数据源即可。
 

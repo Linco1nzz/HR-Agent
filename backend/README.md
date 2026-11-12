@@ -416,6 +416,41 @@ curl -X POST http://127.0.0.1:18080/api/v1/resume-evaluations/upload \
 - 旧版 DOC 解析依赖系统工具：优先 antiword、catdoc、LibreOffice，Windows 上
   还会尝试本机 Word COM；都没有时会提示另存为 DOCX。
 
+## 智能面试
+
+面试方案保存于 `interview_plan` 表：一条记录绑定一份简历评价记录，保存候选人
+姓名、应聘岗位、Markdown 正文，以及生成时的 JD 标题与 ID 快照。前端不新增独立
+页面，入口位于“简历筛选”详情的“面试方案”标签，便于围绕同一候选人完成评分、
+查看简历和准备面试。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/interview-plans` | 分页列表，支持 `resume_evaluation_id` / `keyword` | 是 |
+| `POST` | `/api/v1/interview-plans/generate/stream` | 按简历评价记录流式生成，**不落库** | 是 |
+| `POST` | `/api/v1/interview-plans` | 保存面试方案 | 是 |
+| `GET` | `/api/v1/interview-plans/{id}` | 详情（候选人信息与完整正文） | 是 |
+| `PATCH` | `/api/v1/interview-plans/{id}` | 编辑候选人信息或正文 | 是 |
+| `GET` | `/api/v1/interview-plans/{id}/export` | 导出文件，`format=docx`（默认）/ `markdown` | 是 |
+
+生成请求：
+
+```json
+{
+  "resume_evaluation_id": "<简历评价 UUID>",
+  "instructions": "重点考察架构能力与团队协作"
+}
+```
+
+- 后端读取该简历记录的 `resume_content` 与关联 JD，调用 Dify Chatflow type=4：
+  `inputs.jd` 为 JD 摘要（标题、部门、技能、正文、要求），`inputs.jianli` 为简历
+  正文；`instructions` 作为可选 `query`，为空时由 `dify_service` 补默认 query。
+- 与 JD / 评分标准生成一致，事件为 `start` / `delta` / `done` / `error`；`done`
+  返回完整方案及候选人、JD 快照，确认后调用保存接口落库。
+- 保存时 `job_title` / `job_description_id` 取自简历评价记录，无需前端传入；
+  编辑只更新候选人信息与正文。
+- 导出默认生成 Word（`.docx`），也支持 Markdown（`.md`）；文件名包含候选人
+  姓名与日期，中文文件名通过 `Content-Disposition` 的 `filename*` 编码。
+
 ## Dify Chatflow 接入
 
 HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
@@ -485,7 +520,7 @@ curl -N -X POST http://127.0.0.1:18080/api/v1/ai/chat/stream \
 data: {"event":"error","status":503,"code":"DIFY_UNAVAILABLE","message":"..."}
 ```
 
-JD、简历评分标准等需要把增量文本重组为完整业务对象的接口，统一由
+JD、简历评分标准、智能面试等需要把增量文本重组为完整业务对象的接口，统一由
 `app/services/streaming.py` 的 `stream_chatflow` 编排 `start` / `delta` /
 `done` / `error`，接口层用 `app/api/v1/responses.py` 的 `sse_response` 返回。
 新增生成流程只需提供 `ChatRequest`、`done` 事件的响应组装函数和错误文案。

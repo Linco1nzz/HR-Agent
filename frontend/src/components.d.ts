@@ -37,6 +37,7 @@ declare module 'vue' {
     ElSkeleton: typeof import('element-plus/es')['ElSkeleton']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElUpload: typeof import('element-plus/es')['ElUpload']
+    InterviewPlanPanel: typeof import('./components/InterviewPlanPanel.vue')['default']
     JdEditorDrawer: typeof import('./components/JdEditorDrawer.vue')['default']
     JdMarkdown: typeof import('./components/JdMarkdown.vue')['default']
     ResumeUploadDialog: typeof import('./components/ResumeUploadDialog.vue')['default']
