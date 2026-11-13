@@ -7,9 +7,11 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     ai,
     auth,
+    documents,
     health,
     interview_plans,
     jds,
+    knowledge_bases,
     resume_evaluations,
     scoring_criteria,
 )
@@ -22,3 +24,5 @@ api_router.include_router(jds.router)
 api_router.include_router(scoring_criteria.router)
 api_router.include_router(resume_evaluations.router)
 api_router.include_router(interview_plans.router)
+api_router.include_router(knowledge_bases.router)
+api_router.include_router(documents.router)

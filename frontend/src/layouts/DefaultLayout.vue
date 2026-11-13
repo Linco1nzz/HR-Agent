@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
   ArrowDown,
+  Collection,
   Document,
   Expand,
   Fold,
@@ -134,6 +135,10 @@ onBeforeUnmount(() => {
           <el-menu-item index="/resumes">
             <el-icon><UserFilled /></el-icon>
             <template #title>简历筛选</template>
+          </el-menu-item>
+          <el-menu-item index="/knowledge-bases">
+            <el-icon><Collection /></el-icon>
+            <template #title>知识库</template>
           </el-menu-item>
         </el-menu>
       </nav>

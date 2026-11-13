@@ -58,11 +58,33 @@ class Settings(BaseSettings):
     argon2_memory_cost: int = 32768
     argon2_parallelism: int = 2
 
-    # --- LLM / Embedding ---
-    llm_api_key: str | None = None
-    llm_base_url: str | None = None
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dim: int = 1536
+    # --- LLM：DeepSeek（判断知识库文档的语义分割点）---
+    #: 从系统环境变量 DEEPSEEK_API_KEY 读取
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-flash"
+    #: DeepSeek Flash 会先输出 reasoning_content，需为 JSON 结果留足 token
+    deepseek_max_tokens: int = 2048
+    #: 推理强度：low / high / max；切分点判断用 low 即可
+    deepseek_reasoning_effort: str = "low"
+    #: 单次分割点判断的最长等待时间（秒）
+    deepseek_timeout_seconds: float = 120.0
+
+    # --- Embedding：阿里云百炼 DashScope 兼容模式 ---
+    #: 从系统环境变量 DASHSCOPE_API_KEY 读取
+    dashscope_api_key: str | None = None
+    embedding_base_url: str = (
+        "https://llm-krcikrn4mpgwujad.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+    )
+    embedding_model: str = "qwen3.7-text-embedding"
+    #: 必须与 langchain_pg_embedding 向量列维度一致
+    embedding_dim: int = 1024
+    #: 单次请求 embedding 接口的文本条数
+    embedding_batch_size: int = 16
+
+    # --- 向量存储：LangChain PGVector（langchain_pg_embedding 表）---
+    #: 知识库分块统一存入该 collection，按 cmetadata.document_id 区分文档
+    pgvector_collection_name: str = "hr_agent_kb_chunks"
 
     # --- Dify Chatflow（advanced-chat 应用，API 前缀需包含 /v1）---
     dify_base_url: str = "http://127.0.0.1/v1"
@@ -76,6 +98,22 @@ class Settings(BaseSettings):
     resume_upload_dir: str = str(BACKEND_DIR / "uploads" / "resumes")
     #: 单份简历允许的最大体积（MB）
     resume_max_file_size_mb: int = 10
+
+    # --- 知识库文档上传与切块 ---
+    #: 知识库文档保存目录；相对路径按 backend/ 解析
+    knowledge_base_upload_dir: str = str(BACKEND_DIR / "uploads" / "knowledge_bases")
+    #: 单份文档允许的最大体积（MB）
+    knowledge_base_max_file_size_mb: int = 20
+    #: 单个分块的目标长度（字符）；中文场景按字符而非 token 计
+    knowledge_base_chunk_size: int = 800
+    #: 相邻分块的重叠长度（字符），避免边界语义被切断
+    knowledge_base_chunk_overlap: int = 120
+    #: 小于该长度的分块尽量并入前一块
+    knowledge_base_min_chunk_chars: int = 80
+    #: 单份文档最多保留的分块数量，超出部分丢弃并记录日志
+    knowledge_base_max_chunks: int = 500
+    #: 交给 LLM 判断语义分割点时允许的最大字符数，过长文本只取前段
+    knowledge_base_llm_split_max_chars: int = 12_000
 
     # --- CORS（逗号分隔的前端地址）---
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

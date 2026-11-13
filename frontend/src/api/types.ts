@@ -334,3 +334,98 @@ export interface GenerateInterviewPlanResponse {
 }
 
 export type InterviewPlanExportFormat = 'docx' | 'markdown'
+
+/** 知识库（app/schemas/knowledge_base.py）。 */
+export interface KnowledgeBase {
+  id: string
+  name: string
+  description: string | null
+  is_public: boolean
+  is_searchable: boolean
+  meta_data: Record<string, unknown> | null
+  document_count: number
+  category: string | null
+  tags: string[] | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeBaseListResponse {
+  items: KnowledgeBase[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface KnowledgeBasePayload {
+  name: string
+  description?: string | null
+  is_public?: boolean
+  is_searchable?: boolean
+  meta_data?: Record<string, unknown> | null
+  category?: string | null
+  tags?: string[] | null
+}
+
+export type KnowledgeBaseUpdatePayload = Partial<KnowledgeBasePayload>
+
+/** 文档处理状态（app/schemas/document.py）。 */
+export type DocumentProcessingStatus = 'uploaded' | 'processing' | 'processed' | 'failed'
+
+export interface KnowledgeDocumentListItem {
+  id: string
+  knowledge_base_id: string | null
+  knowledge_base_name: string | null
+  original_filename: string
+  mime_type: string
+  file_size: number
+  processing_status: DocumentProcessingStatus
+  processing_error: string | null
+  chunk_count: number
+  category: string | null
+  tags: string[] | null
+  processed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeDocument extends KnowledgeDocumentListItem {
+  filename: string
+  file_hash: string
+  meta_data: Record<string, unknown> | null
+  user_id: string
+  created_by: string | null
+}
+
+export interface KnowledgeDocumentListResponse {
+  items: KnowledgeDocumentListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface DocumentContentResponse {
+  document_id: string
+  original_filename: string
+  mime_type: string
+  content: string
+  char_count: number
+  chunk_count: number
+  processing_status: DocumentProcessingStatus
+}
+
+export interface DocumentChunkItem {
+  id: string
+  chunk_index: number
+  content: string
+  char_count: number
+  has_embedding: boolean
+  meta_data: Record<string, unknown> | null
+}
+
+export interface DocumentChunkListResponse {
+  document_id: string
+  items: DocumentChunkItem[]
+  total: number
+}

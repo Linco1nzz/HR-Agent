@@ -97,7 +97,7 @@ uv run alembic current                                                # 当前�
 
 - ORM 模型放在 `app/db/models/`，并在 `app/db/models/__init__.py` 中导入；`migrations/env.py`
   已导入该包，`--autogenerate` 才能发现新表。
-- 迁移与 `langchain-postgres` 使用同步 psycopg 连接；HTTP 请求的异步引擎使用 asyncpg。
+- 迁移使用同步 psycopg 连接；HTTP 请求与 LangChain PGVector 共用异步引擎（asyncpg）。
   原因是 psycopg 3 的异步模式不支持 Windows 默认的 `ProactorEventLoop`。
 
 ## 异常处理
@@ -451,6 +451,84 @@ curl -X POST http://127.0.0.1:18080/api/v1/resume-evaluations/upload \
 - 导出默认生成 Word（`.docx`），也支持 Markdown（`.md`）；文件名包含候选人
   姓名与日期，中文文件名通过 `Content-Disposition` 的 `filename*` 编码。
 
+## 知识库
+
+知识库的业务数据存于 `knowledge_bases`、`documents` 两张表：一个知识库可以挂多份
+文档，每份文档保存文件信息、解析后的正文与处理状态。**分块文本与向量统一交给
+LangChain PGVector 管理**，落在它自建的 `langchain_pg_collection` /
+`langchain_pg_embedding` 表（见下文）。按项目约定业务表不建数据库外键，
+`knowledge_base_id` / `user_id` 的关联完整性由业务层保证。
+
+权限规则：任何登录用户都可以创建知识库；**编辑 / 删除知识库需要管理员**
+（`is_superuser` 或管理员角色）。非管理员只能看到公开知识库与自己创建的知识库，
+文档的可见性跟随所属知识库。文档删除权限归上传者或管理员。
+
+| 方法 | 路径 | 说明 | 需要登录 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/knowledge-bases` | 分页列表，支持 `keyword` / `category` / `is_public` | 是 |
+| `POST` | `/api/v1/knowledge-bases` | 创建知识库 | 是 |
+| `GET` | `/api/v1/knowledge-bases/{id}` | 详情 | 是 |
+| `PATCH` | `/api/v1/knowledge-bases/{id}` | 编辑知识库（管理员） | 是 |
+| `DELETE` | `/api/v1/knowledge-bases/{id}` | 删除知识库（管理员，文档仅解除关联） | 是 |
+| `GET` | `/api/v1/knowledge-bases/{id}/documents` | 知识库下的文档列表 | 是 |
+| `POST` | `/api/v1/knowledge-bases/{id}/documents` | 上传文档并同步处理 | 是 |
+| `GET` | `/api/v1/documents` | 跨知识库文档列表，`unassigned=true` 查未关联文档 | 是 |
+| `GET` | `/api/v1/documents/{id}` | 文档详情 | 是 |
+| `GET` | `/api/v1/documents/{id}/content` | 原始文本预览 | 是 |
+| `GET` | `/api/v1/documents/{id}/chunks` | 分块预览 | 是 |
+| `POST` | `/api/v1/documents/{id}/reprocess` | 重新解析 / 切块 / 向量化 | 是 |
+| `DELETE` | `/api/v1/documents/{id}` | 删除文档（文件、记录、向量块） | 是 |
+
+上传使用 `multipart/form-data`：
+
+```bash
+curl -X POST http://127.0.0.1:18080/api/v1/knowledge-bases/<KB UUID>/documents \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@员工手册.pdf"
+```
+
+处理链路（上传后同步执行，失败会记录在文档上而不是丢弃文件）：
+
+1. 文件落盘到 `KNOWLEDGE_BASE_UPLOAD_DIR/<user_id>/`，计算 SHA256 并在同一知识库内去重；
+2. **临时文件**：把保存的文件复制到临时文件后提取正文（PDF / DOCX / DOC / TXT / MD / CSV）；
+3. **LLM 分割点**：正文超过阈值时，调用 DeepSeek（`deepseek-flash`）标出主题切换的
+   段落序号，把正文切成语义段；未配置 `DEEPSEEK_API_KEY` 或调用失败时自动退化为
+   整篇切分，不影响入库；
+4. **切分 + 长度约束**：使用 LangChain `RecursiveCharacterTextSplitter` 按中英文标点
+   递归切分，受 `KNOWLEDGE_BASE_CHUNK_SIZE` / `CHUNK_OVERLAP` 约束，过短分块并入前一块；
+5. **向量化入库**：用 LangChain OpenAI 兼容接口调用阿里云百炼 `qwen3.7-text-embedding`
+   （1024 维）批量生成向量，再通过 LangChain `PGVector.aadd_embeddings` 写入
+   `langchain_pg_embedding` 表（按分块 id upsert，重新处理时原地覆盖）。
+
+处理失败时接口仍返回 `201`，文档 `processing_status=failed` 并带 `processing_error`，
+修复配置（如 `DASHSCOPE_API_KEY`）后可调用 `POST /documents/{id}/reprocess` 重试。
+
+删除语义：
+
+- **删除知识库**：只删除知识库记录，并把其下文档的 `knowledge_base_id` 置空；文档、
+  文件与向量全部保留，可通过 `GET /documents?unassigned=true` 继续管理。
+- **删除文档**：同时删除磁盘文件、`documents` 记录，以及 `langchain_pg_embedding`
+  中该文档的全部分块向量。
+
+### PGVector 向量存储
+
+分块向量不再使用自建表，而是统一存入 LangChain PGVector 的 `langchain_pg_embedding`：
+
+- 所有知识库共用一个 collection（`PGVECTOR_COLLECTION_NAME`，默认 `hr_agent_kb_chunks`）；
+  每个分块的 `cmetadata` 携带 `document_id` / `knowledge_base_id` / `chunk_index` /
+  `char_count` 等字段，用于按文档过滤、排序与删除。
+- 分块主键为 `{document_id}:{chunk_index}`，重新处理时按 id upsert 覆盖。
+- 这两张表由 PGVector 在首次使用时惰性创建，**不属于业务 ORM 元数据**，Alembic 通过
+  `migrations/env.py` 的 `include_name` 将其排除在自动生成之外。
+- 向量维度必须与 `EMBEDDING_DIM` 一致；更换 embedding 模型导致维度变化时，需要重建
+  collection（删除旧表或改用新 collection 名）并对文档重新处理。
+
+相关配置：`KNOWLEDGE_BASE_UPLOAD_DIR`、`KNOWLEDGE_BASE_MAX_FILE_SIZE_MB`、
+`KNOWLEDGE_BASE_CHUNK_SIZE`、`KNOWLEDGE_BASE_CHUNK_OVERLAP`、
+`KNOWLEDGE_BASE_MIN_CHUNK_CHARS`、`KNOWLEDGE_BASE_MAX_CHUNKS`、`DEEPSEEK_MODEL`、
+`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、`EMBEDDING_DIM`、`EMBEDDING_BATCH_SIZE`、
+`PGVECTOR_COLLECTION_NAME`。
+
 ## Dify Chatflow 接入
 
 HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
@@ -565,8 +643,13 @@ JD、简历评分标准、智能面试等需要把增量文本重组为完整业
 | `JWT_SECRET` | `change-me-in-production-please-32bytes` | JWT 签名密钥；生产环境必须改为不少于 32 字节的随机字符串 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | 访问令牌有效期（分钟） |
 | `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST` / `ARGON2_PARALLELISM` | `2` / `32768` / `2` | Argon2id 参数（内存单位 KiB） |
-| `LLM_API_KEY` / `LLM_BASE_URL` | 空 | 大模型密钥与代理地址 |
-| `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `text-embedding-3-small` / `1536` | 向量模型与维度 |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` | 空 / `https://api.deepseek.com/v1` | 知识库语义分割点使用的 DeepSeek 密钥与地址 |
+| `DEEPSEEK_MODEL` / `DEEPSEEK_MAX_TOKENS` | `deepseek-flash` / `2048` | 对话模型与输出上限（推理模型需留足 token） |
+| `DEEPSEEK_REASONING_EFFORT` / `DEEPSEEK_TIMEOUT_SECONDS` | `low` / `120` | 推理强度与单次请求超时（秒） |
+| `DASHSCOPE_API_KEY` | 空 | 阿里云百炼（DashScope）Embedding 密钥 |
+| `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` | 百炼兼容模式 / `qwen3.7-text-embedding` | 向量服务地址与模型 |
+| `EMBEDDING_DIM` / `EMBEDDING_BATCH_SIZE` | `1024` / `16` | 向量维度（须与表结构一致）与单批条数 |
+| `PGVECTOR_COLLECTION_NAME` | `hr_agent_kb_chunks` | LangChain PGVector collection 名（分块向量统一存入） |
 | `DIFY_BASE_URL` | `http://127.0.0.1/v1` | Dify API 地址，必须包含 `/v1` |
 | `DIFY_API_KEY` | 空 | Dify 应用「API 访问」密钥（`app-` 开头） |
 | `DIFY_TIMEOUT_SECONDS` / `DIFY_CONNECT_TIMEOUT_SECONDS` | `120` / `5` | 工作流读取超时 / 连接超时（秒） |

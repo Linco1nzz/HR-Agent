@@ -271,3 +271,71 @@ class ScoringCriteriaRequiredError(UnprocessableEntityError):
 
     code = ErrorCode.SCORING_CRITERIA_REQUIRED
     default_message = "该 JD 还没有评分标准，请先生成评分标准后再筛选简历"
+
+
+# ---------------------------------------------------------------------------
+# 知识库 / 文档
+# ---------------------------------------------------------------------------
+class KnowledgeBaseNotFoundError(NotFoundError):
+    """404：知识库不存在或已删除。"""
+
+    code = ErrorCode.KNOWLEDGE_BASE_NOT_FOUND
+    default_message = "知识库不存在"
+
+
+class KnowledgeBaseNameExistsError(ConflictError):
+    """409：知识库名称已被占用。"""
+
+    code = ErrorCode.KNOWLEDGE_BASE_NAME_EXISTS
+    default_message = "知识库名称已存在"
+
+
+class DocumentNotFoundError(NotFoundError):
+    """404：文档不存在或已删除。"""
+
+    code = ErrorCode.DOCUMENT_NOT_FOUND
+    default_message = "文档不存在"
+
+
+class DocumentDuplicateError(ConflictError):
+    """409：同一知识库下已存在内容完全相同的文档。"""
+
+    code = ErrorCode.DOCUMENT_DUPLICATE
+    default_message = "该知识库下已存在相同内容的文档"
+
+
+class UnsupportedDocumentFormatError(UnprocessableEntityError):
+    """422：上传的文档格式不在支持范围内。"""
+
+    code = ErrorCode.UNSUPPORTED_DOCUMENT_FORMAT
+    default_message = "不支持的文档格式"
+
+
+class DocumentFileTooLargeError(AppException):
+    """413：文档超过大小限制。"""
+
+    status_code = 413
+    code = ErrorCode.DOCUMENT_FILE_TOO_LARGE
+    default_message = "文档超过大小限制"
+
+
+class DocumentParseError(UnprocessableEntityError):
+    """422：文档无法解析出有效文本。"""
+
+    code = ErrorCode.DOCUMENT_PARSE_FAILED
+    default_message = "文档解析失败"
+
+
+class DocumentProcessingError(AppException):
+    """500：文档切块或向量化失败（错误原因会写入文档处理状态）。"""
+
+    status_code = 500
+    code = ErrorCode.DOCUMENT_PROCESSING_FAILED
+    default_message = "文档处理失败"
+
+
+class EmbeddingNotConfiguredError(ServiceUnavailableError):
+    """503：未配置 embedding 服务，无法完成向量化。"""
+
+    code = ErrorCode.EMBEDDING_NOT_CONFIGURED
+    default_message = "未配置 Embedding 服务，请设置 DASHSCOPE_API_KEY"

@@ -26,6 +26,13 @@ config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"
 target_metadata = BaseModel.metadata
 
 
+def include_name(name: str | None, type_: str, parent_names: dict) -> bool:
+    """LangChain PGVector 自建的表不由 Alembic 管理，排除在自动生成之外。"""
+    if type_ == "table" and name and name.startswith("langchain_pg_"):
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """离线模式：只生成 SQL，不连接数据库。"""
     context.configure(
@@ -34,6 +41,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -49,6 +57,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_name=include_name,
         )
 
         with context.begin_transaction():

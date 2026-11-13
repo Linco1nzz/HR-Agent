@@ -17,11 +17,15 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, String, Text, UniqueConstraint, Uuid, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.db.models.document import Document
 
 
 class User(BaseModel):
@@ -79,6 +83,13 @@ class User(BaseModel):
         primaryjoin="User.id == UserRoleAssociation.user_id",
         secondaryjoin="Role.id == UserRoleAssociation.role_id",
         back_populates="users",
+    )
+    #: 该用户上传的知识库文档；无外键，显式指定 join 条件
+    documents: Mapped[list[Document]] = relationship(
+        "Document",
+        primaryjoin="User.id == foreign(Document.user_id)",
+        back_populates="uploaded_by",
+        lazy="raise",
     )
 
     def __repr__(self) -> str:

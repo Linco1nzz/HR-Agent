@@ -17,8 +17,8 @@ def _to_async_url(raw_url: str) -> str:
     """把 DATABASE_URL 转成 asyncpg 驱动。
 
     psycopg 3 的异步模式在 Windows 默认的 ProactorEventLoop 下不可用，
-    因此应用层统一使用 asyncpg；psycopg 仍供 Alembic / langchain-postgres
-    的同步连接使用。
+    因此应用层统一使用 asyncpg（LangChain PGVector 也复用本异步引擎）；
+    psycopg 仍供 Alembic 迁移的同步连接使用。
     """
     url = make_url(raw_url)
     if url.drivername in {"postgres", "postgresql", "postgresql+psycopg"}:

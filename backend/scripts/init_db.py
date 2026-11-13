@@ -3,7 +3,9 @@
 主要做三件事：
 
 1. 初始化数据库表（``users`` / ``role`` / ``user_role`` / ``job_description`` /
-   ``scoring_criteria``）。
+   ``scoring_criteria`` / ``knowledge_bases`` / ``documents``）。知识库分块向量
+   存于 LangChain PGVector 的 ``langchain_pg_embedding`` 表，由 PGVector 首次
+   使用时自动创建，不在本脚本建表范围内。
 2. 确保存在两个内置角色：普通用户、超级管理员。
 3. 确保存在测试管理员 ``testuser``，并把它绑定到超级管理员角色。
 
