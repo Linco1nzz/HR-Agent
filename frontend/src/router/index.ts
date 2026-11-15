@@ -53,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '知识库', requiresAuth: true },
       },
       {
+        path: 'knowledge-qa',
+        name: 'knowledge-qa',
+        component: () => import('@/views/KnowledgeQaView.vue'),
+        meta: { title: '知识问答', requiresAuth: true },
+      },
+      {
         path: 'scoring-criteria',
         // 旧的独立页面入口保留兼容，统一回到 JD 管理页的评分标准标签
         redirect: { name: 'jds' },

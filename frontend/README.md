@@ -98,50 +98,60 @@ frontend/
 
 ### 已接入的接口
 
-| 方法     | 路径                                       | 用途                               |
-| -------- | ------------------------------------------ | ---------------------------------- |
-| `POST`   | `/api/v1/auth/login`                       | 登录并获取令牌                     |
-| `GET`    | `/api/v1/auth/me`                          | 恢复当前用户                       |
-| `POST`   | `/api/v1/auth/logout`                      | 退出登录（本地令牌一定会清除）     |
-| `GET`    | `/api/v1/jds`                              | JD 分页列表                        |
-| `POST`   | `/api/v1/jds`                              | 保存 JD                            |
-| `GET`    | `/api/v1/jds/{id}`                         | JD 详情                            |
-| `PATCH`  | `/api/v1/jds/{id}`                         | 编辑 JD                            |
-| `POST`   | `/api/v1/jds/generate`                     | AI 生成 JD（阻塞，不落库）         |
-| `POST`   | `/api/v1/jds/generate/stream`              | AI 流式生成 JD（SSE，不落库）      |
-| `GET`    | `/api/v1/scoring-criteria`                 | 评分标准分页列表                   |
-| `POST`   | `/api/v1/scoring-criteria`                 | 保存评分标准                       |
-| `GET`    | `/api/v1/scoring-criteria/{id}`            | 评分标准详情                       |
-| `PATCH`  | `/api/v1/scoring-criteria/{id}`            | 编辑评分标准                       |
-| `POST`   | `/api/v1/scoring-criteria/generate`        | 根据已有 JD 生成评分标准（不落库） |
-| `POST`   | `/api/v1/scoring-criteria/generate/stream` | 流式生成评分标准（SSE，不落库）    |
-| `GET`    | `/api/v1/resume-evaluations`               | 简历筛选记录分页列表               |
-| `POST`   | `/api/v1/resume-evaluations/upload`        | 上传简历并完成 AI 评分             |
-| `GET`    | `/api/v1/resume-evaluations/{id}`          | 简历详情与评分结果                 |
-| `PATCH`  | `/api/v1/resume-evaluations/{id}/status`   | 人工更新复核状态                   |
-| `GET`    | `/api/v1/interview-plans`                  | 面试方案分页列表                   |
-| `POST`   | `/api/v1/interview-plans/generate/stream`  | 流式生成面试方案（SSE，不落库）    |
-| `POST`   | `/api/v1/interview-plans`                  | 保存面试方案                       |
-| `GET`    | `/api/v1/interview-plans/{id}`             | 面试方案详情                       |
-| `PATCH`  | `/api/v1/interview-plans/{id}`             | 编辑面试方案                       |
-| `GET`    | `/api/v1/interview-plans/{id}/export`      | 导出 Word / Markdown               |
-| `GET`    | `/api/v1/knowledge-bases`                  | 知识库分页列表                     |
-| `POST`   | `/api/v1/knowledge-bases`                  | 创建知识库                         |
-| `PATCH`  | `/api/v1/knowledge-bases/{id}`             | 编辑知识库（管理员）               |
-| `DELETE` | `/api/v1/knowledge-bases/{id}`             | 删除知识库（文档仅解除关联）       |
-| `POST`   | `/api/v1/knowledge-bases/{id}/documents`   | 上传文档并解析 / 切块 / 向量化     |
-| `GET`    | `/api/v1/documents`                        | 文档列表（含未关联文档）           |
-| `GET`    | `/api/v1/documents/{id}/content`           | 文档原始内容预览                   |
-| `GET`    | `/api/v1/documents/{id}/chunks`            | 文档分块预览                       |
-| `DELETE` | `/api/v1/documents/{id}`                   | 删除文档（文件 + 向量块）          |
+| 方法     | 路径                                                 | 用途                               |
+| -------- | ---------------------------------------------------- | ---------------------------------- |
+| `POST`   | `/api/v1/auth/login`                                 | 登录并获取令牌                     |
+| `GET`    | `/api/v1/auth/me`                                    | 恢复当前用户                       |
+| `POST`   | `/api/v1/auth/logout`                                | 退出登录（本地令牌一定会清除）     |
+| `GET`    | `/api/v1/jds`                                        | JD 分页列表                        |
+| `POST`   | `/api/v1/jds`                                        | 保存 JD                            |
+| `GET`    | `/api/v1/jds/{id}`                                   | JD 详情                            |
+| `PATCH`  | `/api/v1/jds/{id}`                                   | 编辑 JD                            |
+| `POST`   | `/api/v1/jds/generate`                               | AI 生成 JD（阻塞，不落库）         |
+| `POST`   | `/api/v1/jds/generate/stream`                        | AI 流式生成 JD（SSE，不落库）      |
+| `GET`    | `/api/v1/scoring-criteria`                           | 评分标准分页列表                   |
+| `POST`   | `/api/v1/scoring-criteria`                           | 保存评分标准                       |
+| `GET`    | `/api/v1/scoring-criteria/{id}`                      | 评分标准详情                       |
+| `PATCH`  | `/api/v1/scoring-criteria/{id}`                      | 编辑评分标准                       |
+| `POST`   | `/api/v1/scoring-criteria/generate`                  | 根据已有 JD 生成评分标准（不落库） |
+| `POST`   | `/api/v1/scoring-criteria/generate/stream`           | 流式生成评分标准（SSE，不落库）    |
+| `GET`    | `/api/v1/resume-evaluations`                         | 简历筛选记录分页列表               |
+| `POST`   | `/api/v1/resume-evaluations/upload`                  | 上传简历并完成 AI 评分             |
+| `GET`    | `/api/v1/resume-evaluations/{id}`                    | 简历详情与评分结果                 |
+| `PATCH`  | `/api/v1/resume-evaluations/{id}/status`             | 人工更新复核状态                   |
+| `GET`    | `/api/v1/interview-plans`                            | 面试方案分页列表                   |
+| `POST`   | `/api/v1/interview-plans/generate/stream`            | 流式生成面试方案（SSE，不落库）    |
+| `POST`   | `/api/v1/interview-plans`                            | 保存面试方案                       |
+| `GET`    | `/api/v1/interview-plans/{id}`                       | 面试方案详情                       |
+| `PATCH`  | `/api/v1/interview-plans/{id}`                       | 编辑面试方案                       |
+| `GET`    | `/api/v1/interview-plans/{id}/export`                | 导出 Word / Markdown               |
+| `GET`    | `/api/v1/knowledge-bases`                            | 知识库分页列表                     |
+| `POST`   | `/api/v1/knowledge-bases`                            | 创建知识库                         |
+| `PATCH`  | `/api/v1/knowledge-bases/{id}`                       | 编辑知识库（管理员）               |
+| `DELETE` | `/api/v1/knowledge-bases/{id}`                       | 删除知识库（文档仅解除关联）       |
+| `POST`   | `/api/v1/knowledge-bases/{id}/documents`             | 上传文档并解析 / 切块 / 向量化     |
+| `GET`    | `/api/v1/documents`                                  | 文档列表（含未关联文档）           |
+| `GET`    | `/api/v1/documents/{id}/content`                     | 文档原始内容预览                   |
+| `GET`    | `/api/v1/documents/{id}/chunks`                      | 文档分块预览                       |
+| `DELETE` | `/api/v1/documents/{id}`                             | 删除文档（文件 + 向量块）          |
+| `GET`    | `/api/v1/conversations`                              | 问答会话分页列表                   |
+| `POST`   | `/api/v1/conversations`                              | 创建问答会话（可绑定知识库）       |
+| `GET`    | `/api/v1/conversations/{id}`                         | 会话详情                           |
+| `PATCH`  | `/api/v1/conversations/{id}`                         | 编辑会话（标题 / 状态 / 知识库）   |
+| `DELETE` | `/api/v1/conversations/{id}`                         | 删除会话（级联删除消息）           |
+| `GET`    | `/api/v1/conversations/{id}/messages`                | 会话消息历史（升序分页）           |
+| `PATCH`  | `/api/v1/conversations/{id}/messages/{mid}/feedback` | 消息评分（接口已封装，UI 未启用）  |
+| `POST`   | `/api/v1/conversations/{id}/chat`                    | 知识问答（SSE 流式，落库）         |
 
 JD 管理页（`/jds`）支持列表 / 详情、状态筛选、新建、AI 流式生成与在线编辑。
 AI 生成通过后端 Dify Chatflow type=1 完成：后端把 Dify SSE 归一化为
 `start` / `delta` / `done` / `error`，前端用 `fetch` + `ReadableStream` 边收边渲染；
 Markdown 正文由 `marked` 渲染并经 `DOMPurify` 清洗。
 
-流式生成统一走 `src/api/stream.ts` 的 `streamGeneration`，它负责鉴权、非 2xx
-错误响应与 SSE 帧分发；新增功能只需传入接口路径、请求体与结果类型。
+流式调用统一走 `src/api/stream.ts` 的 `streamGeneration`，它负责鉴权、非 2xx
+错误响应与 SSE 帧分发（内置 `delta` / `done` / `error` 语义）；新增功能只需传入
+接口路径、请求体与结果类型，额外事件（如知识问答的 `meta` / `sources`）通过
+`onEvent` 钩子扩展。
 
 简历评分标准已整合进 JD 管理页（`/jds`）：选中一个 JD 后，在右侧切换到「简历评分
 标准」标签，即可看到该 JD 已有的评分标准卡片、生成新标准并进入编辑。生成时正文会
@@ -164,6 +174,16 @@ Word（`.docx`）或 Markdown（`.md`）。未保存的修改会在切换方案�
 后端同步完成解析、切块与向量化，列表用状态标签展示处理进度，失败时显示原因并可「重新
 处理」。文档「预览」对话框提供「原始内容 / 分块预览」两个标签，分块会标记是否已向量化。
 删除知识库后，其文档转为未关联状态且文件、向量保留，可从「未关联文档」继续预览或删除。
+
+知识问答页（`/knowledge-qa`）左侧是会话历史（新建 / 重命名 / 删除 / 加载更多），右侧
+聊天区顶部可多选知识库（未选择时提示将直接由 AI 回答）。发送后先本地插入气泡，再直接
+调用通用 `streamGeneration`（与 JD 等生成接口同一套管线，`onEvent` 处理问答特有的
+`meta` / `sources` 事件，视图自持 AbortController）接收
+`meta` / `sources` / `delta` / `done` / `error` 事件边收边渲染，支持「停止生成」
+（AbortController，切换会话 / 卸载时自动中断）。KB 回答展示来源 chips（文档名 + 分数），
+点击打开片段对话框（可跳转文档预览），「检索过程」折叠面板展示改写后的问题与关键词；
+历史消息按 `message.context` 回放同样的来源与检索信息。正文复用 `JdMarkdown`
+（marked + DOMPurify）渲染。
 
 工作台中的统计指标与图表为演示数据，后续业务接口接入时替换 `DashboardView.vue` 中的数据源即可。
 

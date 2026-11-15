@@ -86,6 +86,31 @@ class Settings(BaseSettings):
     #: 知识库分块统一存入该 collection，按 cmetadata.document_id 区分文档
     pgvector_collection_name: str = "hr_agent_kb_chunks"
 
+    # --- Rerank：阿里云百炼原生 text-rerank 接口（复用 DASHSCOPE_API_KEY）---
+    rerank_base_url: str = (
+        "https://llm-krcikrn4mpgwujad.cn-beijing.maas.aliyuncs.com"
+        "/api/v1/services/rerank/text-rerank/text-rerank"
+    )
+    rerank_model: str = "qwen3.7-text-rerank"
+    #: 单次 rerank 请求的最长等待时间（秒）
+    rerank_timeout_seconds: float = 30.0
+    #: 送入 rerank 的每条候选文本最大字符数，超出截断
+    rerank_max_doc_chars: int = 4000
+
+    # --- 知识库问答：混合检索 + rerank + 流式回答 ---
+    #: 向量路 / 关键词路各自的召回数量
+    qa_recall_k: int = 20
+    #: rerank 后保留并送入回答的来源数量
+    qa_top_k: int = 5
+    #: 向量路最低余弦相似度（1 - 余弦距离），低于该值丢弃
+    qa_min_similarity: float = 0.30
+    #: 带入路由 / 改写 / 回答的历史轮数（一轮 = 一问一答）
+    qa_history_turns: int = 6
+    #: 回答生成的最大 token 数（推理模型需为 reasoning 留足额度）
+    qa_max_answer_tokens: int = 2048
+    #: 回答生成的采样温度
+    qa_temperature: float = 0.3
+
     # --- Dify Chatflow（advanced-chat 应用，API 前缀需包含 /v1）---
     dify_base_url: str = "http://127.0.0.1/v1"
     dify_api_key: str | None = None

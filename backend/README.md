@@ -529,6 +529,33 @@ curl -X POST http://127.0.0.1:18080/api/v1/knowledge-bases/<KB UUID>/documents \
 `EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`、`EMBEDDING_DIM`、`EMBEDDING_BATCH_SIZE`、
 `PGVECTOR_COLLECTION_NAME`。
 
+## 知识问答
+
+基于知识库的流式问答（`/api/v1/conversations`），会话与消息落在 `conversations` /
+`messages` 两张业务表（无外键，归属由业务层校验；删除会话级联删除消息）。
+
+问答管线（`qa_service` 编排）：
+
+1. **路由判断**：LLM 结合知识库名称/描述与最近历史判断是否需要检索；寒暄、闲聊、
+   通用常识直接走 LLM 回答（`route=direct`），不检索。
+2. **查询增强**：LLM 做指代消解改写并提取 3~8 个关键词（失败回退原问题）。
+3. **混合检索**（`kb_retrieval_service`）：向量路走 PGVector
+   `asimilarity_search_with_score`（按 `cmetadata.knowledge_base_id` `$in` 过滤，
+   低于 `QA_MIN_SIMILARITY` 的丢弃）；关键词路对 `langchain_pg_embedding.document`
+   做 ILIKE 匹配按命中数排序；两路用 RRF（k=60）融合去重。
+4. **精排**（`rerank_service`）：DashScope 原生 rerank 接口
+   （`RERANK_BASE_URL`，模型 `qwen3.7-text-rerank`）取 `QA_TOP_K`；
+   未配置密钥或调用失败时回退 RRF 排序，不阻断回答。
+5. **流式回答**：DeepSeek 流式生成，KB 路提示词要求基于编号来源回答并用 `[n]` 引用。
+
+SSE 事件序列：`meta`（消息 id / 路由 / 改写 / 关键词）→ `sources`（仅 KB 路，
+含片段全文与分数）→ `delta`* → `done` | `error`。assistant 消息的 `context`
+保存路由与来源片段，历史接口可直接回放。流式期间的持久化使用独立数据库会话。
+
+相关配置：`QA_RECALL_K`、`QA_TOP_K`、`QA_MIN_SIMILARITY`、`QA_HISTORY_TURNS`、
+`QA_MAX_ANSWER_TOKENS`、`QA_TEMPERATURE`、`RERANK_BASE_URL`、`RERANK_MODEL`、
+`RERANK_TIMEOUT_SECONDS`、`RERANK_MAX_DOC_CHARS`（rerank 复用 `DASHSCOPE_API_KEY`）。
+
 ## Dify Chatflow 接入
 
 HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
@@ -650,6 +677,11 @@ JD、简历评分标准、智能面试等需要把增量文本重组为完整业
 | `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` | 百炼兼容模式 / `qwen3.7-text-embedding` | 向量服务地址与模型 |
 | `EMBEDDING_DIM` / `EMBEDDING_BATCH_SIZE` | `1024` / `16` | 向量维度（须与表结构一致）与单批条数 |
 | `PGVECTOR_COLLECTION_NAME` | `hr_agent_kb_chunks` | LangChain PGVector collection 名（分块向量统一存入） |
+| `RERANK_BASE_URL` / `RERANK_MODEL` | 百炼原生 rerank 地址 / `qwen3.7-text-rerank` | 知识问答精排服务（复用 `DASHSCOPE_API_KEY`） |
+| `RERANK_TIMEOUT_SECONDS` / `RERANK_MAX_DOC_CHARS` | `30` / `4000` | 精排超时（秒）与单条候选截断长度 |
+| `QA_RECALL_K` / `QA_TOP_K` | `20` / `5` | 混合检索每路召回数 / 精排后保留数 |
+| `QA_MIN_SIMILARITY` / `QA_HISTORY_TURNS` | `0.30` / `6` | 向量路最低余弦相似度 / 带入的历史轮数 |
+| `QA_MAX_ANSWER_TOKENS` / `QA_TEMPERATURE` | `2048` / `0.3` | 回答输出上限与采样温度 |
 | `DIFY_BASE_URL` | `http://127.0.0.1/v1` | Dify API 地址，必须包含 `/v1` |
 | `DIFY_API_KEY` | 空 | Dify 应用「API 访问」密钥（`app-` 开头） |
 | `DIFY_TIMEOUT_SECONDS` / `DIFY_CONNECT_TIMEOUT_SECONDS` | `120` / `5` | 工作流读取超时 / 连接超时（秒） |

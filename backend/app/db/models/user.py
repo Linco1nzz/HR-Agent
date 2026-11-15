@@ -25,6 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import BaseModel
 
 if TYPE_CHECKING:
+    from app.db.models.conversation import Conversation
     from app.db.models.document import Document
 
 
@@ -89,6 +90,13 @@ class User(BaseModel):
         "Document",
         primaryjoin="User.id == foreign(Document.user_id)",
         back_populates="uploaded_by",
+        lazy="raise",
+    )
+    #: 该用户的问答会话；无外键，显式指定 join 条件
+    conversations: Mapped[list[Conversation]] = relationship(
+        "Conversation",
+        primaryjoin="User.id == foreign(Conversation.user_id)",
+        back_populates="user",
         lazy="raise",
     )
 

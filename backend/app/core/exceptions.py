@@ -339,3 +339,34 @@ class EmbeddingNotConfiguredError(ServiceUnavailableError):
 
     code = ErrorCode.EMBEDDING_NOT_CONFIGURED
     default_message = "未配置 Embedding 服务，请设置 DASHSCOPE_API_KEY"
+
+
+# ---------------------------------------------------------------------------
+# 知识库问答
+# ---------------------------------------------------------------------------
+class ConversationNotFoundError(NotFoundError):
+    """404：会话不存在或不属于当前用户。"""
+
+    code = ErrorCode.CONVERSATION_NOT_FOUND
+    default_message = "会话不存在"
+
+
+class MessageNotFoundError(NotFoundError):
+    """404：消息不存在或不属于该会话。"""
+
+    code = ErrorCode.MESSAGE_NOT_FOUND
+    default_message = "消息不存在"
+
+
+class QaNotConfiguredError(ServiceUnavailableError):
+    """503：未配置回答模型，无法发起问答。"""
+
+    code = ErrorCode.QA_NOT_CONFIGURED
+    default_message = "未配置问答模型，请设置 DEEPSEEK_API_KEY"
+
+
+class QaStreamError(InternalError):
+    """500：问答流式生成失败（SSE 中以 error 事件返回）。"""
+
+    code = ErrorCode.QA_STREAM_FAILED
+    default_message = "回答生成失败，请稍后重试"

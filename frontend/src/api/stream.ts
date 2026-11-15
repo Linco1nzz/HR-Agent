@@ -1,8 +1,10 @@
 /**
- * 通用流式生成调用。
+ * 通用 SSE 流式调用。
  *
- * 后端把 Dify 事件归一化为 `start` / `delta` / `done` / `error`，本模块统一处理
- * 鉴权、错误响应与 SSE 帧分发；新增生成功能只需提供接口路径和结果类型。
+ * 统一处理鉴权、错误响应与 SSE 帧分发：内置 `delta` / `done` / `error` 语义
+ * （Dify 生成接口归一化为 `start` / `delta` / `done` / `error`；知识问答另有
+ * `meta` / `sources`，通过 `onEvent` 钩子扩展）。新增流式功能只需提供接口路径、
+ * 结果类型与可选的事件钩子。
  */
 
 import { ApiError, notifyUnauthorized } from '@/api/http'
@@ -15,6 +17,8 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/,
 export interface StreamOptions {
   signal?: AbortSignal
   onDelta?: (delta: string) => void
+  /** 每个解析成功的 SSE 帧都会回调（含 delta/done/error），用于扩展事件。 */
+  onEvent?: (event: string, data: Record<string, unknown>) => void
 }
 
 export interface StreamRequestOptions extends StreamOptions {
@@ -23,10 +27,11 @@ export interface StreamRequestOptions extends StreamOptions {
 }
 
 /**
- * 以 SSE 调用后端的流式生成接口。
+ * 以 SSE 调用后端的流式接口。
  *
  * 收到 `delta` 时回调，收到 `done` 时 resolve 完整结果；`error` 事件或非 2xx
- * 响应会 reject 为 `ApiError`。
+ * 响应会 reject 为 `ApiError`。主动 abort 时 reject 为 DOMException（AbortError），
+ * 调用方按 `signal.aborted` 自行忽略。
  */
 export async function streamGeneration<T>(
   path: string,
@@ -53,7 +58,7 @@ export async function streamGeneration<T>(
     } catch {
       // 非 JSON 错误响应，保留默认提示
     }
-    throw new ApiError(body?.message || `生成失败（HTTP ${response.status}）`, {
+    throw new ApiError(body?.message || `请求失败（HTTP ${response.status}）`, {
       status: response.status,
       code: body?.code,
       requestId: body?.request_id ?? undefined,
@@ -61,7 +66,7 @@ export async function streamGeneration<T>(
   }
 
   if (!response.body) {
-    throw new ApiError('生成流不可用，请稍后重试')
+    throw new ApiError('响应流不可用，请稍后重试')
   }
 
   let done: T | null = null
@@ -72,8 +77,10 @@ export async function streamGeneration<T>(
     try {
       data = JSON.parse(frame.data) as Record<string, unknown>
     } catch {
-      throw new ApiError('生成流数据格式异常')
+      throw new ApiError('流数据格式异常')
     }
+
+    options.onEvent?.(frame.event, data)
 
     if (frame.event === 'delta') {
       if (typeof data.content === 'string' && options.onDelta) {
@@ -93,6 +100,6 @@ export async function streamGeneration<T>(
   })
 
   if (streamError) throw streamError
-  if (done === null) throw new ApiError('生成流意外结束，请重试')
+  if (done === null) throw new ApiError('流意外结束，请重试')
   return done
 }

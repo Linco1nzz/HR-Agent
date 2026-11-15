@@ -12,6 +12,9 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BaseChart: typeof import('./components/BaseChart.vue')['default']
+    ChatInput: typeof import('./components/ChatInput.vue')['default']
+    ChatMessage: typeof import('./components/ChatMessage.vue')['default']
+    ConversationList: typeof import('./components/ConversationList.vue')['default']
     DocumentPreviewDialog: typeof import('./components/DocumentPreviewDialog.vue')['default']
     DocumentUploadDialog: typeof import('./components/DocumentUploadDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -19,6 +22,8 @@ declare module 'vue' {
     ElBreadcrumb: typeof import('element-plus/es')['ElBreadcrumb']
     ElBreadcrumbItem: typeof import('element-plus/es')['ElBreadcrumbItem']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElCollapse: typeof import('element-plus/es')['ElCollapse']
+    ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDrawer: typeof import('element-plus/es')['ElDrawer']
@@ -51,5 +56,6 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ScoringCriteriaEditorDrawer: typeof import('./components/ScoringCriteriaEditorDrawer.vue')['default']
+    SourceSnippetDialog: typeof import('./components/SourceSnippetDialog.vue')['default']
   }
 }

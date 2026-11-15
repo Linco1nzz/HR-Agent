@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
   ArrowDown,
+  ChatDotRound,
   Collection,
   Document,
   Expand,
@@ -139,6 +140,10 @@ onBeforeUnmount(() => {
           <el-menu-item index="/knowledge-bases">
             <el-icon><Collection /></el-icon>
             <template #title>知识库</template>
+          </el-menu-item>
+          <el-menu-item index="/knowledge-qa">
+            <el-icon><ChatDotRound /></el-icon>
+            <template #title>知识问答</template>
           </el-menu-item>
         </el-menu>
       </nav>

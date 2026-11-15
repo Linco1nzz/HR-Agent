@@ -429,3 +429,116 @@ export interface DocumentChunkListResponse {
   items: DocumentChunkItem[]
   total: number
 }
+
+/** 会话（app/schemas/conversation.py）。 */
+export type ConversationStatus = 'active' | 'archived'
+
+export interface Conversation {
+  id: string
+  title: string
+  description: string | null
+  status: ConversationStatus
+  knowledge_base_ids: string[]
+  total_messages: number
+  meta_data: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationListResponse {
+  items: Conversation[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ConversationPayload {
+  title?: string
+  description?: string | null
+  knowledge_base_ids?: string[]
+}
+
+export interface ConversationUpdatePayload {
+  title?: string
+  description?: string | null
+  status?: ConversationStatus
+  knowledge_base_ids?: string[]
+}
+
+/** 会话消息（app/schemas/conversation.py）。 */
+export type ChatRole = 'user' | 'assistant'
+
+/** 回答路由：kb 走知识库检索，direct 由模型直接回答。 */
+export type ChatRoute = 'kb' | 'direct'
+
+export interface ChatSource {
+  chunk_id: string
+  document_id: string
+  document_name: string
+  knowledge_base_id: string
+  chunk_index: number
+  score: number
+  content: string
+}
+
+export interface ChatContext {
+  route: ChatRoute
+  reason?: string | null
+  rewritten_query?: string | null
+  keywords?: string[] | null
+  sources?: ChatSource[] | null
+}
+
+export interface ChatMessage {
+  id: string
+  conversation_id: string
+  role: ChatRole
+  content: string
+  model_name: string | null
+  tokens_used: number | null
+  response_time: number | null
+  context: ChatContext | null
+  meta_data: Record<string, unknown> | null
+  rating: number | null
+  feedback: string | null
+  parent_message_id: string | null
+  created_at: string
+}
+
+export interface ChatMessageListResponse {
+  items: ChatMessage[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface MessageFeedbackPayload {
+  rating: number
+  feedback?: string | null
+}
+
+/** POST /conversations/{id}/chat 的 SSE 事件载荷。 */
+export interface ChatMetaEvent {
+  user_message_id: string
+  assistant_message_id: string
+  route: ChatRoute
+  reason?: string | null
+  rewritten_query?: string | null
+  keywords?: string[] | null
+}
+
+export interface ChatSourcesEvent {
+  sources: ChatSource[]
+}
+
+export interface ChatDoneEvent {
+  message_id: string
+  tokens_used?: number | null
+  response_time?: number | null
+  model_name?: string | null
+}
+
+export interface ChatErrorEvent {
+  code?: string
+  message?: string
+}
