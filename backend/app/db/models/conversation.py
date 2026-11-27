@@ -34,6 +34,13 @@ class Conversation(BaseModel):
         server_default="新会话",
         comment="会话标题",
     )
+    kind: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="knowledge",
+        server_default="knowledge",
+        comment="会话类型：knowledge（知识问答）/ agent（HR Agent）",
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="会话描述")
     status: Mapped[str] = mapped_column(
         String(20),

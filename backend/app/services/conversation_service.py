@@ -47,6 +47,7 @@ async def create_conversation(
     kb_ids = await validate_knowledge_base_ids(db, payload.knowledge_base_ids, user=user)
     record = Conversation(
         title=payload.title or DEFAULT_TITLE,
+        kind=payload.kind.value,
         description=payload.description,
         knowledge_base_ids=[str(kb_id) for kb_id in kb_ids],
         total_messages=0,
@@ -72,9 +73,12 @@ async def list_conversations(
     page: int,
     page_size: int,
     user: User,
+    kind: str | None = None,
 ) -> tuple[list[Conversation], int]:
-    """分页查询当前用户的会话，按更新时间倒序。"""
+    """分页查询当前用户的会话，按更新时间倒序；可按 kind 过滤。"""
     filters = [Conversation.user_id == user.id, Conversation.is_active.is_(True)]
+    if kind is not None:
+        filters.append(Conversation.kind == kind)
     total = await db.scalar(select(func.count()).select_from(Conversation).where(*filters)) or 0
     stmt = (
         select(Conversation)

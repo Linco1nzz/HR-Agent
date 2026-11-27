@@ -341,3 +341,24 @@ async def stream_generate_scoring_criteria(
         failure_message="评分标准生成失败，请稍后重试",
         log_context={"job_description_id": str(jd.id)},
     )
+
+
+async def archive_scoring_criteria(
+    db: AsyncSession,
+    criteria_id: UUID,
+    *,
+    user_id: UUID,
+) -> ScoringCriteria:
+    """软删除评分标准：置为归档并停止在列表 / 选择器中展示。"""
+    record = await get_scoring_criteria(db, criteria_id)
+    record.is_active = False
+    record.status = ScoringCriteriaStatus.ARCHIVED.value
+    record.updated_by = user_id
+    await db.commit()
+    await db.refresh(record)
+    logger.info(
+        "scoring_criteria_archived",
+        criteria_id=str(record.id),
+        user_id=str(user_id),
+    )
+    return record

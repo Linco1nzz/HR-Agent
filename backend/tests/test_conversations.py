@@ -30,6 +30,7 @@ def make_conversation_record(user_id: UUID, **overrides: Any) -> Conversation:
     data: dict[str, Any] = {
         "id": uuid4(),
         "title": "新会话",
+        "kind": "knowledge",
         "description": None,
         "status": "active",
         "knowledge_base_ids": [],
@@ -151,7 +152,9 @@ def test_list_conversations_pagination(
     assert session.user is not None
     records = [make_conversation_record(session.user.id) for _ in range(2)]
 
-    async def fake_list(db: Any, *, page: int, page_size: int, user: Any) -> tuple[list, int]:
+    async def fake_list(
+        db: Any, *, page: int, page_size: int, user: Any, kind: str | None = None
+    ) -> tuple[list, int]:
         assert page == 2 and page_size == 5
         return records, 7
 

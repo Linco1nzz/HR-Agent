@@ -35,6 +35,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工作台', requiresAuth: true },
       },
       {
+        path: 'agent',
+        name: 'agent',
+        component: () => import('@/views/AgentChatView.vue'),
+        meta: { title: 'AI 助手', requiresAuth: true },
+      },
+      {
         path: 'jds',
         name: 'jds',
         component: () => import('@/views/JdView.vue'),

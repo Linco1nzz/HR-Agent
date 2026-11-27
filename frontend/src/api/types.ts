@@ -433,9 +433,13 @@ export interface DocumentChunkListResponse {
 /** 会话（app/schemas/conversation.py）。 */
 export type ConversationStatus = 'active' | 'archived'
 
+/** 会话类型：知识问答 / HR Agent。 */
+export type ConversationKind = 'knowledge' | 'agent'
+
 export interface Conversation {
   id: string
   title: string
+  kind: ConversationKind
   description: string | null
   status: ConversationStatus
   knowledge_base_ids: string[]
@@ -455,6 +459,7 @@ export interface ConversationListResponse {
 export interface ConversationPayload {
   title?: string
   description?: string | null
+  kind?: ConversationKind
   knowledge_base_ids?: string[]
 }
 
@@ -541,4 +546,111 @@ export interface ChatDoneEvent {
 export interface ChatErrorEvent {
   code?: string
   message?: string
+}
+
+// ---------------------------------------------------------------------------
+// HR Agent（app/schemas/agent.py，字段与后端 JSON 快照一致，全部 snake_case）
+// ---------------------------------------------------------------------------
+
+/** 任务状态；created / running / waiting_confirm 为未结束状态。 */
+export type AgentTaskStatus =
+  'created' | 'running' | 'waiting_confirm' | 'completed' | 'failed' | 'cancelled'
+
+/** 步骤状态。 */
+export type AgentStepStatus =
+  'pending' | 'running' | 'waiting_confirm' | 'completed' | 'failed' | 'skipped' | 'cancelled'
+
+/** 确认动作：执行 / 取消整个任务。 */
+export type AgentConfirmAction = 'confirm' | 'cancel'
+
+/** 一个步骤的执行快照。 */
+export interface AgentStep {
+  step_index: number
+  tool: string
+  name: string
+  status: AgentStepStatus
+  args: Record<string, unknown>
+  summary: string
+  result_preview: string | null
+  content: string | null
+  error: string | null
+  editable: boolean
+}
+
+/** 待人工确认的写操作（确认卡片数据源）。 */
+export interface AgentConfirm {
+  step_index: number
+  tool: string
+  name: string
+  summary: string
+  args: Record<string, unknown>
+  editable: boolean
+}
+
+/** 任务详情：SSE 首帧与刷新恢复共用。 */
+export interface AgentTaskRead {
+  id: string
+  conversation_id: string
+  status: AgentTaskStatus
+  instruction: string
+  current_step_index: number
+  steps: AgentStep[]
+  pending_confirm: AgentConfirm | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentChatPayload {
+  conversation_id: string
+  content: string
+}
+
+export interface AgentChatResponse {
+  task_id: string
+  status: AgentTaskStatus
+}
+
+export interface AgentConfirmPayload {
+  task_id: string
+  action: AgentConfirmAction
+  /** 确认时提交的修改后参数；缺省沿用原参数。 */
+  params?: Record<string, unknown>
+}
+
+export interface AgentConfirmResponse {
+  task_id: string
+  status: AgentTaskStatus
+}
+
+/** 确认表单内上传简历的响应（只解析，不评分）。 */
+export interface AgentResumeUploadResponse {
+  upload_id: string
+  filename: string
+  resume_chars: number
+}
+
+/** GET /agent/stream/{task_id} 的事件载荷。 */
+export interface AgentTaskStartedEvent {
+  task: AgentTaskRead
+}
+
+export interface AgentStepEvent {
+  step: AgentStep
+}
+
+export interface AgentMessageEvent {
+  text: string
+  step_index: number
+}
+
+export interface AgentConfirmRequiredEvent {
+  task_id: string
+  pending_confirm: AgentConfirm
+}
+
+export interface AgentTaskEndEvent {
+  task_id: string
+  status: AgentTaskStatus
+  error: string | null
 }

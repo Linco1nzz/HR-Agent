@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ChatMessageListResponse,
   Conversation,
+  ConversationKind,
   ConversationListResponse,
   ConversationPayload,
   ConversationUpdatePayload,
@@ -12,6 +13,8 @@ import type {
 export interface ConversationListParams {
   page?: number
   page_size?: number
+  /** 只查某一类会话（知识问答 / HR Agent）；缺省返回全部。 */
+  kind?: ConversationKind
 }
 
 export interface MessageListParams {
@@ -26,6 +29,7 @@ export async function listConversations(
     params: {
       page: params.page ?? 1,
       page_size: params.page_size ?? 20,
+      ...(params.kind ? { kind: params.kind } : {}),
     },
   })
   return data

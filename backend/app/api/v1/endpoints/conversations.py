@@ -19,6 +19,7 @@ from app.db.session import get_db
 from app.schemas.conversation import (
     ChatRequest,
     ConversationCreate,
+    ConversationKind,
     ConversationListResponse,
     ConversationRead,
     ConversationUpdate,
@@ -76,6 +77,10 @@ async def list_conversations(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    kind: ConversationKind | None = Query(
+        None,
+        description="会话类型：knowledge（知识问答）/ agent（HR Agent）",
+    ),
 ) -> ConversationListResponse:
     """分页查询会话。"""
     records, total = await conversation_service.list_conversations(
@@ -83,6 +88,7 @@ async def list_conversations(
         page=page,
         page_size=page_size,
         user=current_user,
+        kind=kind.value if kind is not None else None,
     )
     return ConversationListResponse(
         items=[ConversationRead.model_validate(record) for record in records],

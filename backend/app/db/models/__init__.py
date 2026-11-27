@@ -18,6 +18,7 @@
 已定义的模型统一在此导入，供 Alembic 及业务代码使用。
 """
 
+from app.db.models.agent_task import AgentTask
 from app.db.models.conversation import Conversation, Message
 from app.db.models.document import Document
 from app.db.models.interview_plan import InterviewPlan
@@ -28,6 +29,7 @@ from app.db.models.scoring_criteria import ScoringCriteria
 from app.db.models.user import Role, User, UserRoleAssociation
 
 __all__ = [
+    "AgentTask",
     "Conversation",
     "Document",
     "InterviewPlan",

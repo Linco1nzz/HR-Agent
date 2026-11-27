@@ -84,6 +84,23 @@ frontend/
 `.env.development` / `.env.production` 已提交，便于团队开箱即用；个人覆盖请新建
 `.env.development.local`（已被 gitignore）。所有 `VITE_*` 变量都会打进客户端产物，禁止放密钥。
 
+## AI 助手（HR Agent）
+
+自然语言驱动的异步任务页面：后端规划与执行，前端只负责发起任务、展示进度与人工确认。
+
+- 入口：侧边栏「AI 助手」（路由 `/agent`，`AgentChatView.vue`）；
+- 接口封装：`src/api/agent.ts`（`chatWithAgent` / `streamTask` / `confirmAgentTask` /
+  `getActiveTask` / `uploadResume`）；
+- 状态：`src/stores/agentTask.ts`（步骤快照、待确认动作、流式文本、连接竞态控制）；
+- 组件：`AgentStepTimeline.vue`（步骤时间线）、`AgentConfirmDialog.vue`（可编辑确认卡片，
+  删除卡片只读）；助手持久化消息复用 `ChatMessage.vue`，流式 Markdown 复用 `JdMarkdown.vue`。
+- 进度流：`GET /api/v1/agent/stream/{task_id}` 是带 `Authorization` 的 SSE，浏览器
+  `EventSource` 无法设置请求头，因此统一用 `fetch` + `src/utils/sse.ts` 的 `consumeSse` 解析；
+  事件为 `task_started` / `step` / `message` / `confirm_required` / `task_end`，断线重连由后端
+  快照兜底（`getActiveTask` 恢复未结束任务）。
+- 会话：Agent 会话与知识问议会话通过 `conversations.kind` 区分，知识问答页只加载
+  `kind=knowledge`，Agent 页只加载 `kind=agent`。
+
 ## 后端对接约定
 
 - 接口前缀 `/api/v1`，类型定义在 `src/api/types.ts`，与后端 Pydantic Schema 保持一致。

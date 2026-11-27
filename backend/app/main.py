@@ -13,8 +13,10 @@ from app.core.config import settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.redis import close_redis
 from app.db.session import dispose_engine
 from app.services import dify_service
+from app.services.agent import task_service
 
 setup_logging()
 logger = get_logger(__name__)
@@ -22,15 +24,22 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """应用生命周期：启动日志 / 退出时释放连接池。"""
+    """应用生命周期：启动日志 / 收尾中断任务 / 退出时释放连接池。"""
     logger.info(
         "application_startup",
         app=settings.app_name,
         environment=settings.app_env,
         debug=settings.debug,
     )
+    # ADR 0005：本期不实现重启续跑，把中断的 Agent 任务标记为失败
+    if settings.app_env != "testing":
+        try:
+            await task_service.mark_stalled_tasks_failed()
+        except Exception as exc:  # pragma: no cover - 启动阶段数据库可能不可用
+            logger.warning("agent_task_recovery_failed", error=str(exc))
     yield
     await dispose_engine()
+    await close_redis()
     await dify_service.close_client()
     logger.info("application_shutdown")
 

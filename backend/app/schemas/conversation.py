@@ -17,6 +17,13 @@ class ConversationStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class ConversationKind(StrEnum):
+    """会话类型：知识问答 / HR Agent。"""
+
+    KNOWLEDGE = "knowledge"
+    AGENT = "agent"
+
+
 class MessageRole(StrEnum):
     """消息角色。"""
 
@@ -32,6 +39,10 @@ class ConversationCreate(BaseModel):
         default=None, max_length=255, description="会话标题，缺省为「新会话」"
     )
     description: str | None = Field(default=None, description="会话描述")
+    kind: ConversationKind = Field(
+        default=ConversationKind.KNOWLEDGE,
+        description="会话类型：knowledge（知识问答）/ agent（HR Agent）",
+    )
     knowledge_base_ids: list[UUID] = Field(default_factory=list, description="绑定的知识库 ID 列表")
 
     @field_validator("title")
@@ -82,6 +93,7 @@ class ConversationRead(BaseModel):
 
     id: UUID = Field(description="会话 ID")
     title: str = Field(description="会话标题")
+    kind: ConversationKind = Field(description="会话类型：knowledge / agent")
     description: str | None = Field(default=None, description="会话描述")
     status: ConversationStatus = Field(description="会话状态")
     knowledge_base_ids: list[UUID] = Field(default_factory=list, description="绑定的知识库 ID 列表")

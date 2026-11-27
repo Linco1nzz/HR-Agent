@@ -370,3 +370,48 @@ class QaStreamError(InternalError):
 
     code = ErrorCode.QA_STREAM_FAILED
     default_message = "回答生成失败，请稍后重试"
+
+
+# ---------------------------------------------------------------------------
+# HR Agent
+# ---------------------------------------------------------------------------
+class AgentTaskNotFoundError(NotFoundError):
+    """404：任务不存在或不属于当前用户。"""
+
+    code = ErrorCode.AGENT_TASK_NOT_FOUND
+    default_message = "任务不存在"
+
+
+class AgentTaskStateError(ConflictError):
+    """409：任务当前状态不允许该操作（如重复确认、任务已结束）。"""
+
+    code = ErrorCode.AGENT_TASK_STATE_CONFLICT
+    default_message = "任务状态不允许该操作"
+
+
+class AgentToolValidationError(UnprocessableEntityError):
+    """422：工具参数未通过 schema 校验。"""
+
+    code = ErrorCode.AGENT_TOOL_INVALID
+    default_message = "工具参数不合法"
+
+
+class AgentToolFailedError(ExternalServiceError):
+    """502：工具执行失败（Dify 工作流报错、资源不存在等）。"""
+
+    code = ErrorCode.AGENT_TOOL_FAILED
+    default_message = "操作执行失败"
+
+
+class AgentPlanError(UnprocessableEntityError):
+    """422：无法把用户指令拆解成可执行的工具步骤。"""
+
+    code = ErrorCode.AGENT_PLAN_FAILED
+    default_message = "无法理解这条指令，请换一种说法"
+
+
+class AgentUploadNotFoundError(NotFoundError):
+    """404：确认表单内上传的简历不存在或已过期。"""
+
+    code = ErrorCode.AGENT_UPLOAD_NOT_FOUND
+    default_message = "上传的简历不存在或已过期"

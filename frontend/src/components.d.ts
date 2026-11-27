@@ -11,6 +11,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AgentConfirmDialog: typeof import('./components/AgentConfirmDialog.vue')['default']
+    AgentStepTimeline: typeof import('./components/AgentStepTimeline.vue')['default']
     BaseChart: typeof import('./components/BaseChart.vue')['default']
     ChatInput: typeof import('./components/ChatInput.vue')['default']
     ChatMessage: typeof import('./components/ChatMessage.vue')['default']
@@ -40,6 +42,8 @@ declare module 'vue' {
     ElOption: typeof import('element-plus/es')['ElOption']
     ElPagination: typeof import('element-plus/es')['ElPagination']
     ElProgress: typeof import('element-plus/es')['ElProgress']
+    ElRadio: typeof import('element-plus/es')['ElRadio']
+    ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
     ElResult: typeof import('element-plus/es')['ElResult']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSkeleton: typeof import('element-plus/es')['ElSkeleton']

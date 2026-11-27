@@ -1,7 +1,8 @@
 # HR-Agent 后端（backend）
 
 FastAPI + SQLAlchemy 2 + Alembic + LangChain / LangGraph，依赖与虚拟环境由 **uv** 管理。
-数据库为 PostgreSQL 17 + pgvector（由仓库根目录的 `docker-compose.yml` 启动）。
+数据库为 PostgreSQL 17 + pgvector，缓存 / 队列为 Redis
+（均由仓库根目录的 `docker-compose.yml` 启动）。
 
 ## 技术栈
 
@@ -52,7 +53,7 @@ uv sync
 cp .env.example .env
 # 编辑 .env：DATABASE_URL 里的密码需与仓库根目录 .env 的 POSTGRES_PASSWORD 一致
 
-# 3. 在仓库根目录启动数据库（宿主机端口 5433）
+# 3. 在仓库根目录启动 PostgreSQL / Redis（REDIS_URL 密码需与根 .env 的 REDIS_PASSWORD 一致）
 docker compose up -d
 
 # 4. 启动开发服务器
@@ -63,7 +64,7 @@ uv run uvicorn app.main:app --reload --port 18080
 
 - Swagger 文档：<http://127.0.0.1:18080/docs>
 - 存活探针：<http://127.0.0.1:18080/api/v1/health>
-- 就绪探针（会查库）：<http://127.0.0.1:18080/api/v1/health/ready>
+- 就绪探针（查 PostgreSQL / Redis）：<http://127.0.0.1:18080/api/v1/health/ready>
 
 > 本仓库的 `backend/.env` 已按根目录 `.env` 中的密码生成；换机器或改密码后重新复制并修改。
 
@@ -556,6 +557,40 @@ SSE 事件序列：`meta`（消息 id / 路由 / 改写 / 关键词）→ `sourc
 `QA_MAX_ANSWER_TOKENS`、`QA_TEMPERATURE`、`RERANK_BASE_URL`、`RERANK_MODEL`、
 `RERANK_TIMEOUT_SECONDS`、`RERANK_MAX_DOC_CHARS`（rerank 复用 `DASHSCOPE_API_KEY`）。
 
+## AI 助手（HR Agent）
+
+自然语言指令 → 受限规划 → 工具执行 → SSE 实时进度的异步任务链路，
+需求与技术依据见仓库根目录 `doc/SPEC_REFACTOR.md`，设计决策见 `docs/adr/0001`~`0008`。
+
+- 入口：`POST /api/v1/agent/chat`（立即返回 `task_id`，后台 `BackgroundTasks` 执行）；
+- 进度：`GET /api/v1/agent/stream/{task_id}`，先推数据库快照再订阅 Redis `task_channel:{task_id}`，
+  事件为 `task_started` / `step` / `message` / `confirm_required` / `task_end`；
+- 确认：`POST /api/v1/agent/confirm`（`action=confirm/cancel`，confirm 可带修改后参数）；
+- 恢复：`GET /api/v1/agent/conversations/{id}/active-task`（刷新后取回未结束任务）；
+- 表单内上传简历：`POST /api/v1/agent/uploads/resume`（只解析，不评分）；
+- 任务快照：`GET /api/v1/agent/tasks/{task_id}`。
+
+工具注册表位于 `app/services/agent/registry.py`（8 个工具，参数为独立 Pydantic schema）：
+
+| 工具 | 说明 | 需确认 | 卡片可编辑 |
+| --- | --- | --- | --- |
+| `generate_jd` | 生成 JD（执行前参数表单） | 是 | 是 |
+| `generate_criteria` | 生成评分标准 | 否 | - |
+| `generate_interview` | 生成面试方案 | 否 | - |
+| `score_resume` | 简历评分（已有简历或表单内上传） | 是 | 是 |
+| `query_resource` | 只读查询 JD / 评分标准 / 简历 / 面试方案 | 否 | - |
+| `save_resource` | 生成结果落库 | 是 | 是 |
+| `edit_resource` | 编辑资源 | 是 | 是 |
+| `delete_resource` | 软删除（归档）资源 | 是 | 否 |
+
+- 规划：`app/services/agent/planner.py` 复用 DeepSeek 输出严格 JSON 并做白名单 + schema 校验，
+  模型不可用 / 输出非法 / 超时降级为关键词规则；
+- 执行：`app/services/agent/worker.py` 每步自建 `AsyncSession`，需确认的步骤落库后直接退出，
+  等待确认接口唤醒续跑；生成类结果会追加 `save_resource` 确认步骤；
+- 重启：应用启动时把残留 `running` / `waiting_confirm` 任务标记失败（ADR 0005），不续跑；
+- 测试：`uv run pytest`（外部依赖全部 mock），真实 Dify 链路冒烟用
+  `uv run pytest tests/test_agent_integration.py --run-integration`。
+
 ## Dify Chatflow 接入
 
 HR 业务工作流部署在本地 Dify，应用 `hr_agent` 为 **advanced-chat（Chatflow）**，
@@ -666,7 +701,7 @@ JD、简历评分标准、智能面试等需要把增量文本重组为完整业
 | `DEBUG` | `false` | 为 true 时 SQLAlchemy 打印 SQL |
 | `LOG_LEVEL` | `INFO` | 日志级别；生产环境输出 JSON |
 | `DATABASE_URL` | 本机 5433 的 hr_agent | SQLAlchemy 连接串 |
-| `REDIS_URL` | `redis://localhost:6379/0` | Celery / 缓存（暂无 redis 服务） |
+| `REDIS_URL` | `redis://localhost:6379/0` | Celery / 缓存；compose 已含 redis 服务，密码与根 `.env` 的 `REDIS_PASSWORD` 一致，客户端见 `app/core/redis.py` |
 | `JWT_SECRET` | `change-me-in-production-please-32bytes` | JWT 签名密钥；生产环境必须改为不少于 32 字节的随机字符串 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | 访问令牌有效期（分钟） |
 | `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST` / `ARGON2_PARALLELISM` | `2` / `32768` / `2` | Argon2id 参数（内存单位 KiB） |

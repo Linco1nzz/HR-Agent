@@ -9,6 +9,7 @@ import {
   Expand,
   Fold,
   House,
+  MagicStick,
   SwitchButton,
   UserFilled,
 } from '@element-plus/icons-vue'
@@ -128,6 +129,10 @@ onBeforeUnmount(() => {
           <el-menu-item index="/dashboard">
             <el-icon><House /></el-icon>
             <template #title>工作台</template>
+          </el-menu-item>
+          <el-menu-item index="/agent">
+            <el-icon><MagicStick /></el-icon>
+            <template #title>AI 助手</template>
           </el-menu-item>
           <el-menu-item index="/jds">
             <el-icon><Document /></el-icon>

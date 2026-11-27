@@ -289,3 +289,19 @@ def to_list_item(record: InterviewPlan) -> InterviewPlanListItem:
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
+
+
+async def archive_interview_plan(
+    db: AsyncSession,
+    plan_id: UUID,
+    *,
+    user_id: UUID,
+) -> InterviewPlan:
+    """软删除面试方案：置 ``is_active=False`` 并停止在列表中展示。"""
+    record = await get_interview_plan(db, plan_id)
+    record.is_active = False
+    record.updated_by = user_id
+    await db.commit()
+    await db.refresh(record)
+    logger.info("interview_plan_archived", interview_plan_id=str(record.id), user_id=str(user_id))
+    return record

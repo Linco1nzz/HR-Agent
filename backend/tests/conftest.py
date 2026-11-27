@@ -7,12 +7,17 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+# 单元测试不依赖外部服务：在导入应用前切换为 testing 环境，跳过启动期的
+# Agent 任务恢复扫描（该扫描需要数据库）。
+os.environ.setdefault("APP_ENV", "testing")
+
+from app.main import app  # noqa: E402 - 必须在设置环境变量之后导入
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

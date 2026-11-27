@@ -1,8 +1,8 @@
 # =============================================================================
-# HR-Agent 基础设施：PostgreSQL 17 + pgvector
+# HR-Agent 基础设施：PostgreSQL 17 + pgvector、Redis
 #
-# 仅包含数据库服务，backend / frontend 由各自目录下的服务负责，
-# 通过 docker-compose.network 或宿主机 localhost 访问本数据库。
+# 仅包含基础设施服务，backend / frontend 由各自目录下的服务负责，
+# 通过 hr-agent-net 网络或宿主机 localhost 访问本文件中的服务。
 #
 # 常用命令（在本文件所在目录执行）：
 #   docker compose up -d          启动
@@ -68,9 +68,51 @@ services:
     networks:
       - hr_agent_net
 
+  redis:
+    image: ${REDIS_IMAGE:-redis:8-alpine}
+    container_name: hr-agent-redis
+    restart: unless-stopped
+
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      # 供 healthcheck 的 redis-cli 免 -a 鉴权（避免命令行警告）
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?请先在 .env 中设置 REDIS_PASSWORD}
+
+    ports:
+      # 宿主机端口:容器端口。本机 6379 被占用时改 REDIS_PORT，
+      # 并同步修改 backend/.env 的 REDIS_URL
+      - "${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?请先在 .env 中设置 REDIS_PASSWORD}
+      # AOF 持久化，重启不丢缓存 / 队列数据
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      # 淘汰策略保持默认 noeviction：将来作 Celery broker 时不会丢任务键；
+      # 若只作纯缓存，可加 --maxmemory-policy allkeys-lru
+
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+    networks:
+      - hr_agent_net
+
 volumes:
   pgsql_data:
     name: hr-agent-pgsql-data
+  redis_data:
+    name: hr-agent-redis-data
 
 networks:
   hr_agent_net:

@@ -253,6 +253,73 @@ async def update_resume_status(
     return record
 
 
+async def rescore_resume(
+    db: AsyncSession,
+    *,
+    evaluation_id: UUID,
+    job_description_id: UUID,
+    user_id: UUID,
+    client: httpx.AsyncClient,
+) -> ResumeEvaluation:
+    """按指定 JD 的最新评分标准对已有简历重新评分，并覆盖原评分结果。
+
+    供 HR Agent 的 ``score_resume`` 工具复用：简历正文与文件信息保留不变，
+    只刷新评分标准快照、维度分、综合分与 AI 原始回答。
+    """
+    record = await get_resume_evaluation(db, evaluation_id)
+    jd = await jd_service.get_jd(db, job_description_id)
+    criteria = await scoring_criteria_service.get_latest_for_jd(db, jd.id)
+    if criteria is None:
+        raise ScoringCriteriaRequiredError(
+            details={"job_description_id": str(jd.id), "job_title": jd.title},
+        )
+
+    request = build_evaluation_request(criteria, jd.title, record.resume_content)
+    try:
+        response = await dify_service.chat(request, user_id=user_id, client=client)
+    except DifyInvalidParamError as exc:
+        if "Structured output validation failed" in exc.message:
+            raise DifyInvalidParamError(
+                "Dify 简历评价节点启用了不兼容的结构化输出，请在 Dify 工作流中关闭 "
+                "LLM 3 的结构化输出后重试",
+                details=exc.details,
+            ) from exc
+        raise
+
+    answer = response.answer.strip()
+    if not answer:
+        raise DifyInvalidResponseError("Dify 未返回简历评分内容")
+
+    parsed = parse_evaluation(answer)
+    record.total_score = parsed.total_score
+    record.max_score = _parse_score(criteria.total_score) or _DEFAULT_MAX_SCORE
+    record.evaluation_metrics = [metric.model_dump() for metric in parsed.metrics]
+    record.ai_answer = answer
+    record.ai_response = response.model_dump(mode="json")
+    record.job_title = jd.title
+    record.job_description_id = jd.id
+    record.scoring_criteria_id = criteria.id
+    record.scoring_criteria_title = criteria.title
+    record.conversation_id = response.conversation_id or record.conversation_id
+    if parsed.candidate_name:
+        record.candidate_name = _truncate(parsed.candidate_name, 100)
+    if parsed.candidate_position:
+        record.candidate_position = _truncate(parsed.candidate_position, 200)
+    record.updated_by = user_id
+
+    await db.commit()
+    await db.refresh(record)
+    logger.info(
+        "resume_rescored",
+        resume_evaluation_id=str(record.id),
+        job_description_id=str(jd.id),
+        scoring_criteria_id=str(criteria.id),
+        user_id=str(user_id),
+        total_score=record.total_score,
+    )
+    return record
+
+
 # ---------------------------------------------------------------------------
 # 模型转换
 # ---------------------------------------------------------------------------

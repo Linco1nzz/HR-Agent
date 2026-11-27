@@ -88,6 +88,7 @@ def make_conversation(user_id: UUID, **overrides: Any) -> Conversation:
     data: dict[str, Any] = {
         "id": uuid4(),
         "title": "新会话",
+        "kind": "knowledge",
         "status": "active",
         "knowledge_base_ids": [],
         "total_messages": 0,

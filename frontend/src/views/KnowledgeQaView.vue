@@ -138,7 +138,12 @@ async function scrollToBottom(force = false): Promise<void> {
 async function fetchConversations(): Promise<void> {
   conversationsLoading.value = true
   try {
-    const result = await listConversations({ page: 1, page_size: CONVERSATION_PAGE_SIZE })
+    const result = await listConversations({
+      page: 1,
+      page_size: CONVERSATION_PAGE_SIZE,
+      // 只显示知识问议会话，避免混入 HR Agent 会话
+      kind: 'knowledge',
+    })
     conversations.value = result.items
     conversationTotal.value = result.total
     conversationPage.value = 1
@@ -156,7 +161,11 @@ async function loadMoreConversations(): Promise<void> {
   loadingMore.value = true
   try {
     const nextPage = conversationPage.value + 1
-    const result = await listConversations({ page: nextPage, page_size: CONVERSATION_PAGE_SIZE })
+    const result = await listConversations({
+      page: nextPage,
+      page_size: CONVERSATION_PAGE_SIZE,
+      kind: 'knowledge',
+    })
     const existing = new Set(conversations.value.map((item) => item.id))
     conversations.value.push(...result.items.filter((item) => !existing.has(item.id)))
     conversationTotal.value = result.total

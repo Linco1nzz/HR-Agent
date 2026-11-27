@@ -295,3 +295,19 @@ def stream_generate_jd(
         empty_message="Dify 未返回 JD 内容",
         failure_message="JD 生成失败，请稍后重试",
     )
+
+
+async def archive_jd(db: AsyncSession, jd_id: UUID, *, user_id: UUID) -> JobDescription:
+    """软删除 JD：置为归档并停止在列表 / 选择器中展示。
+
+    项目约定不建数据库外键，硬删除会破坏简历评估 / 面试方案的历史展示，
+    因此 Agent 的删除操作统一落到归档。
+    """
+    record = await get_jd(db, jd_id)
+    record.is_active = False
+    record.status = JDStatus.ARCHIVED.value
+    record.updated_by = user_id
+    await db.commit()
+    await db.refresh(record)
+    logger.info("jd_archived", jd_id=str(record.id), user_id=str(user_id))
+    return record
